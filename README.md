@@ -202,6 +202,13 @@ Portada al abrir (desactivable): saludo, **caja que entiende lo que escribes** (
 - Panel «🔗 Relacionar» en el editor: lo de ese día, lo parecido y una búsqueda para ligar.
 - Personas con **campos extra** libres; listas de personas, lugares y temas en grupos plegables (los más usados primero). Cursos con **campos propios** por curso (p. ej. «Grupo»), editables en la tabla, para agrupar y exportar.
 
+## 🖱 Menú de acciones, selección múltiple y teclado
+- **Clic derecho** (PC) o **mantener presionado** (celular) sobre una nota, actividad, tarea, persona, lugar, movimiento, elemento de la Biblioteca, estudiante o día de la agenda abre sus acciones: editar, recordarme, mover de día, convertir, ligar, asignar proyecto, duplicar, compartir, crear regla, dividir gasto, copiar cita, unir fichas duplicadas, asignar Grupo… En el celular sale como hoja desde abajo.
+- **☑ Seleccionar varios**: toca otros elementos del mismo tipo y aplica una acción a todos desde la barra naranja.
+- Al **seleccionar texto** en una nota: negrita, resaltar, colores, tarea, recordatorio, persona o tema.
+- **🔎 en la barra** (junto a ⟳) o **Ctrl+F** / «/»: buscar en todo desde cualquier parte. Ctrl+F otra vez dentro de la búsqueda usa la del navegador.
+- Teclas (fuera de un campo): **N** nota · **E** actividad · **R** recordatorio · **T** tarea · **G** gasto · **I** ingreso · **B** biblioteca · **S** salud · **1–7** módulos · **?** ayuda. **Ctrl+Enter** o **Ctrl+S** guarda; **Esc** cierra; **Shift+F10** menú del elemento.
+
 ## Seguridad (resumen)
 | Qué | Cómo |
 |---|---|
