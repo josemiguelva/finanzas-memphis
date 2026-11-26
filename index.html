@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Seguridad: la página solo puede conectarse a la API de Dropbox (y solo le envía datos ya cifrados); no carga código de terceros. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' blob:; connect-src https://api.dropboxapi.com https://content.dropboxapi.com https://api.telegram.org https://api.crossref.org https://www.ebi.ac.uk https://eutils.ncbi.nlm.nih.gov https://*.workers.dev https://gmail.googleapis.com; manifest-src 'self'; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#1f4e78">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Memphis">
+<title>Memphis</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="locked">
+
+<header>
+  <h1>Memphis</h1>
+  <div class="seg mods" id="mods"><button data-mod="fin" class="on">💰 Finanzas</button><button data-mod="dia">📓 Diario</button><button data-mod="sal">🩺 Salud</button><button data-mod="bib">📚 Biblioteca</button></div>
+  <nav id="tabsD" hidden>
+    <button data-tv="dia" class="on">🗓️ Agenda</button>
+    <button data-tv="buscar">🔎 Buscar</button>
+    <button data-tv="fichas">👥 Personas</button>
+    <button data-tv="tareas">✅ Tareas</button>
+    <button data-tv="revision">📋 Revisión</button>
+  </nav>
+  <nav id="tabsS" hidden>
+    <button data-ts="resumen" class="on">🩺 Resumen</button>
+    <button data-ts="historial">📋 Historial</button>
+    <button data-ts="perfiles">👤 Perfiles</button>
+    <button data-ts="sintomas">📊 Síntomas</button>
+  </nav>
+  <nav id="tabsB" hidden>
+    <button data-tb="todo" class="on">📚 Todo</button>
+    <button data-tb="leer">📖 Por leer</button>
+    <button data-tb="etiquetas">🏷️ Etiquetas</button>
+    <button data-tb="colecciones">📂 Colecciones</button>
+    <button data-tb="boveda">🗂️ Bóveda</button>
+  </nav>
+  <nav id="tabs">
+    <button data-t="inicio" class="on">🏠 Inicio</button>
+    <button data-t="resumen">📊 Análisis</button>
+    <button data-t="mov">🧾 Movimientos</button>
+    <button data-t="rev">✅ Por revisar</button>
+    <button data-t="graf">📈 Gráficos</button>
+    <button data-t="venc">⏰ Vencimientos</button>
+    <button data-t="rec">🔁 Recurrentes</button>
+    <button data-t="deu">🏦 Deudas</button>
+    <button data-t="reg">⚙️ Reglas</button>
+    <button data-t="cfg">💾 Datos</button>
+  </nav>
+  <span class="sp"></span>
+  <button class="b soloFin" id="btnNuevo">+ Movimiento</button>
+  <button class="b p soloFin" id="btnImp">Importar</button>
+  <button class="b p soloDia" id="btnNota" hidden>+ Nota</button>
+  <button class="b p soloSal" id="btnSalud" hidden>+ Registro</button>
+  <button class="b p soloBib" id="btnBib" hidden>+ Nuevo</button>
+  <button class="b" id="btnBandeja" title="Bandeja: lo que capturas desde el celular, el navegador o Telegram">📥</button>
+  <button class="b" id="btnTema" title="Apariencia: claro, oscuro y colores">🎨</button>
+  <button class="b" id="btnLock" title="Bloquear">🔒</button>
+  <span class="status" id="st"></span>
+</header>
+<main id="view"></main>
+
+<dialog id="dlg"><div class="hd" id="dlgH"></div><div class="bd" id="dlgB"></div><div class="ft" id="dlgF"></div></dialog>
+<input type="file" id="fileIn" hidden accept=".csv,.txt,.xlsx,.xls">
+<input type="file" id="attIn" hidden multiple>
+<input type="file" id="camIn" hidden accept="image/*" capture="environment">
+
+
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="app.js"></script>
+<script src="diario.js"></script>
+<script src="personas.js"></script>
+<script src="salud.js"></script>
+<script src="compartir.js"></script>
+<script src="vinculos.js"></script>
+<script src="biblio.js"></script>
+<script src="extras.js"></script>
+<script src="captura.js"></script>
+<script src="buzon.js"></script>
+<script src="recordar.js"></script>
+<script src="calext.js"></script>
+<script src="mejoras.js"></script>
+<script src="privadas.js"></script>
+<script src="cursos.js"></script>
+<script src="correo.js"></script>
+<script src="proyectos.js"></script>
+<script src="inicio.js"></script>
+<script src="biblio2.js"></script>
+<script src="soltar.js"></script>
+<script src="importar.js"></script>
+<script src="buscar.js"></script>
+<script src="previa.js"></script>
+<script src="avisos.js"></script>
+<script src="ocr.js"></script>
+<script src="respaldo.js"></script>
+<script src="dispositivos.js"></script>
+<script src="ajustes.js"></script>
+<script src="menu.js"></script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; manifest-src 'self'; worker-src 'self'; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0F6E56">
+<title>Memphis · Mis gastos</title>
+<link rel="manifest" href="gastos.webmanifest">
+<link rel="icon" href="icons/icon.svg">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+<style>
+ body{max-width:640px;margin:0 auto;padding:10px 12px 90px}
+ .gh{display:flex;align-items:center;gap:8px;margin:4px 0 10px}.gh h1{font-size:1.25rem;margin:0;flex:1}
+ .gv{font-size:2rem;font-weight:700;width:100%;text-align:right;padding:8px 10px}
+ .gf label{display:block;font-size:.85rem;margin:8px 0 2px;color:var(--mut)}
+ .gf input,.gf select,.gf textarea{width:100%;box-sizing:border-box}
+ .g2c{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+ .gi{display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}.gi:last-child{border-bottom:0}
+ .gi .t{flex:1;min-width:0}.gi .t b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .gi img{width:40px;height:40px;object-fit:cover;border-radius:6px}
+ .gbar{position:fixed;left:0;right:0;bottom:0;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--line);display:flex;gap:8px;justify-content:center}
+ .gbar .b{flex:1;max-width:300px;padding:12px}
+ .pend{color:var(--warn)}.env{color:var(--mut)}
+ #gFotoV img{max-width:100%;max-height:180px;border-radius:8px;margin-top:6px}
+</style>
+</head>
+<body>
+<div id="app"><p class="small muted">Cargando…</p></div>
+<div class="gbar" id="gBar" hidden><button class="b" id="gNuevo">➕ Gasto</button><button class="b p" id="gEnviar">📤 Enviar</button></div>
+<script src="gastos.js"></script>
+</body>
+</html>

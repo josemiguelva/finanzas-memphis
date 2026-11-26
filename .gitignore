@@ -1,0 +1,15 @@
+# Nunca subir datos: este repositorio es solo código
+*.fmx
+*.fma
+*.json
+!manifest.webmanifest
+*.csv
+*.xlsx
+*.xls
+*.pdf
+*.zip
+datos/
+adjuntos/
+respaldos/
+sync/
+.DS_Store
