@@ -32,6 +32,7 @@ function migrarDiario(st,{ISO,ID,normA}){
       versiones:(Array.isArray(e.versiones)?e.versiones:[]).filter(v=>v&&RE_DT.test(String(v.t))).map(v=>({t:String(v.t),titulo:s(v.titulo,300),texto:s(v.texto,200000)})).slice(-30)};
     if(e.gcal&&typeof e.gcal==="object")o.gcal={uid:s(e.gcal.uid,400),desc:s(e.gcal.desc,20000),cal:s(e.gcal.cal,200),visto:RE_DT.test(String(e.gcal.visto))?String(e.gcal.visto):""};if(o.gcal&&e.gcal){if(/^[\w-]{1,40}$/.test(String(e.gcal.src||"")))o.gcal.src=String(e.gcal.src);if(e.gcal.fuera===true)o.gcal.fuera=true}
     if(e.cap&&typeof e.cap==="object")o.cap={de:s(e.cap.de,20),clas:e.cap.clas===true};if(ID.test(String(e.padre||""))&&String(e.padre)!==o.id)o.padre=String(e.padre);if(e.oculto===true)o.oculto=true;if(["extremos","oculta"].includes(e.vis))o.vis=e.vis;if(ID.test(String(e.proy||"")))o.proy=String(e.proy);if(/^#[0-9a-f]{6}$/i.test(String(e.color||"")))o.color=String(e.color);
+    if(e.sinAviso===true)o.sinAviso=true;if(Array.isArray(e.recs)){const R=e.recs.filter(r=>r&&/^\d{4}-\d\d-\d\d$/.test(String(r.fecha))).map(r=>({id:/^[\w-]{3,40}$/.test(String(r.id||""))?String(r.id):"r"+Math.random().toString(36).slice(2,9),fecha:String(r.fecha),hora:/^\d\d:\d\d$/.test(String(r.hora||""))?String(r.hora):"",txt:s(r.txt,300),hecho:r.hecho===true})).slice(0,30);if(R.length)o.recs=R}
     if(e.priv&&typeof e.priv==="object"&&/^[\w+/=]{12,40}$/.test(String(e.priv.iv||""))&&typeof e.priv.ct==="string"&&/^[\w+/=]*$/.test(e.priv.ct)&&e.priv.ct.length<8e6)o.priv={iv:String(e.priv.iv),ct:String(e.priv.ct)};
     return o});
   st.fichas=(Array.isArray(st.fichas)?st.fichas:[]).filter(f=>f&&typeof f==="object"&&String(f.nombre||"").trim()).map(f=>({id:ID.test(String(f.id))?String(f.id):uid(),
@@ -40,7 +41,7 @@ function migrarDiario(st,{ISO,ID,normA}){
   // «@yo» antes creaba una persona llamada «yo»: si ya hay alguien con relación «yo», esa ficha sobra
   if(st.fichas.some(f=>f.tipo==="persona"&&f.datos&&f.datos.rel==="yo"&&claveF(f.nombre)!=="yo"))st.fichas=st.fichas.filter(f=>!(f.tipo==="persona"&&claveF(f.nombre)==="yo"&&!(f.datos&&f.datos.rel&&f.datos.rel!=="yo")&&!f.nota));
 }
-const huellaD=e=>JSON.stringify([e.tipo,e.titulo,e.texto,e.fecha,e.hora,e.horaFin,e.fechaFin||"",e.todoDia,e.lugar,e.alertas,(e.adjuntos||[]).map(a=>a.sha||a.url||"").join(","),JSON.stringify(e.enlaces||[]),e.gcal?JSON.stringify(e.gcal):"",e.fijado,(e.versiones||[]).length,e.cap?JSON.stringify(e.cap):"",e.padre||"",!!e.oculto,e.vis||"",e.color||"",e.proy||"",e.priv?String(e.priv.ct).slice(0,80):""]);
+const huellaD=e=>JSON.stringify([e.tipo,e.titulo,e.texto,e.fecha,e.hora,e.horaFin,e.fechaFin||"",e.todoDia,e.lugar,e.alertas,(e.adjuntos||[]).map(a=>a.sha||a.url||"").join(","),JSON.stringify(e.enlaces||[]),e.gcal?JSON.stringify(e.gcal):"",e.fijado,(e.versiones||[]).length,e.cap?JSON.stringify(e.cap):"",e.padre||"",!!e.oculto,e.vis||"",e.color||"",e.proy||"",e.recs?JSON.stringify(e.recs):"",e.sinAviso?"sa":"",e.priv?String(e.priv.ct).slice(0,80):""]);
 const huellaFi=f=>JSON.stringify([f.nombre,f.tipo,f.alias,f.nota,f.datos&&Object.keys(f.datos).length?f.datos:""]);
 const huellasD=L=>{const o={};for(const e of L||[])o[e.id]=huellaD(e);return o};
 const huellasFi=L=>{const o={};for(const f of L||[])o[f.id]=huellaFi(f);return o};

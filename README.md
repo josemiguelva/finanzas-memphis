@@ -194,6 +194,14 @@ Portada al abrir (desactivable): saludo, **caja que entiende lo que escribes** (
 - **Apodos**: si escribes «mi X» o «a X le duele» y X no está en tus fichas, pregunta quién es y lo guarda como «otro nombre» de esa ficha (dentro del archivo cifrado, nunca en el código).
 - Cursos tiene la pestaña **📌 Hoy** (clases, asistencias sin tomar, por calificar, estudiantes en alerta) y Proyectos muestra indicadores arriba.
 
+## ✍️ Escritura: tres horas, recordatorios y atajos
+- Cada nota tiene **✍️ escrita** (cuándo la anotaste, al pie, editable), **🕑 cuándo pasó o cuándo es** y **⏰ recordatorios** (varios por nota o actividad, cada uno con su fecha, hora y texto). Una nota sin ⏰ no avisa. Las actividades con hora avisan antes (o «🔕 Sin aviso»).
+- «…si no responde, recordarme en una semana» crea un ⏰ aparte (te pregunta con una etiqueta ✕/Sí) y **no** mueve la fecha de la nota. La fecha cambia solo si el texto empieza con ella («Ayer fui…»).
+- Lo detectado aparece como etiquetas con ✕ (persona, lugar, recordatorio) y se sugiere ligar la actividad del mismo día. «su oficina» o «la oficina de X» no se toma como tu lugar. `@"Nombre Apellido"` = `@[Nombre Apellido]`.
+- Atajos: `@` persona, lugar, proyecto, actividad o libro · `#` tema · `/` comandos (tarea, lista, título, negrita, resaltar, color, cita, separador, recordar, foto, galería, archivo, audio, hora, plantilla) · `[ ]` casilla · `{verde:texto}` resaltado de color. En el celular, barra de atajos sobre el teclado. Botón «⌨ ?» con la ayuda.
+- Panel «🔗 Relacionar» en el editor: lo de ese día, lo parecido y una búsqueda para ligar.
+- Personas con **campos extra** libres; listas de personas, lugares y temas en grupos plegables (los más usados primero). Cursos con **campos propios** por curso (p. ej. «Grupo»), editables en la tabla, para agrupar y exportar.
+
 ## Seguridad (resumen)
 | Qué | Cómo |
 |---|---|
