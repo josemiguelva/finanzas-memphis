@@ -164,3 +164,19 @@ Revisión independiente + 12 pruebas con dos dispositivos simulados (celular y c
 ## Sin datos personales en el código
 - El código es público: todos los ejemplos son genéricos (nombres inventados, áreas y plantillas neutras). Las reglas de importación de cada persona (bancos, servicios, empleador, nombres de cuentas) viven **cifradas** en su archivo como reglas propias; el código solo trae reglas comunes de comercios.
 - `tools/guardia.sh` revisa antes de cada publicación que no se suban datos.
+
+## Perfiles (varias personas)
+- Cada perfil tiene su propia frase, su base local (`finanzasMemphis_<perfil>`), sus preferencias del dispositivo y su carpeta en Dropbox (`/perfiles/<perfil>/…`). Todas las rutas de Dropbox pasan por un único punto (`rutaP`), así que un perfil no lee ni escribe fuera de su carpeta (salvo `/pareja/`, el buzón cifrado de la pareja).
+- Con el mismo Dropbox, el permiso de cada celular alcanza la carpeta de la app: sin la frase del otro no puede leer sus datos; a lo sumo podría borrar un archivo, y en ese caso la app lo restaura con la copia local (y Dropbox guarda el historial de borrados).
+- «Mudarme a otro Dropbox» descarga primero todos los adjuntos, borra la carpeta del perfil y, al conectar la otra cuenta, sube todo allá.
+
+## Compartir con la pareja
+- Emparejamiento con un código de 12 caracteres (~60 bits) que se muestra en pantalla: la invitación en Dropbox va cifrada con una llave derivada del código (PBKDF2-SHA256, 600 000 iteraciones) y vence en 3 días; se borra al aceptarse.
+- La llave de pareja (AES-256-GCM, aleatoria) vive dentro de los datos cifrados de cada uno. Cada lado publica `/pareja/<id>/<a|b>.json` cifrado con esa llave (AAD = id y lado). Nada se publica por defecto: personas elegidas (ficha, perfil y registros de salud, sin adjuntos), finanzas a nivel elegido (nada, totales o por categoría) y detalle solo de cuentas o categorías marcadas como comunes; agenda solo con `#familia`.
+- Nunca se incluyen: ciclo, registro íntimo, diario personal, notas privadas ni movimientos fuera de lo común.
+- Terminar publica una marca de revocación cifrada; la otra app borra lo recibido y la carpeta común. Lo que el otro ya vio en pantalla no se puede «des-ver».
+
+## Salud ampliada (ciclo, íntimo, comidas, bienestar)
+- Ciclo, comidas, bienestar y chequeos van dentro de tus datos cifrados; no van al archivo de sincronización sin cifrar ni a la búsqueda general.
+- El registro íntimo tiene una capa extra: cada registro (incluida su fecha) se cifra con la llave de las notas privadas (PIN) y AAD propio; las etiquetas que crees también quedan cifradas. Se cierra solo al salir de esa pestaña.
+- Los avisos por Telegram del ciclo y de la pastilla usan textos discretos si activas el modo discreto.

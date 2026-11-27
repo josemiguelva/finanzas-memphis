@@ -1,6 +1,6 @@
 // =====================================================================================================
 // Intermediario de Memphis para Cloudflare Workers (gratis). Pegar tal cual en el editor del Worker.
-// Versión 2. Solo trabaja para tu Memphis y exige la cabecera X-Memphis-Clave = variable secreta MEMPHIS_CLAVE.
+// Versión 4 (una lista de avisos por persona: varios perfiles, cada uno con su chat de Telegram). Solo trabaja para tu Memphis y exige la cabecera X-Memphis-Clave = variable secreta MEMPHIS_CLAVE.
 //   GET  /ics?u=<dirección secreta iCal>   → trae tu calendario (Google, Outlook o iCloud)
 //   GET  /tg/<ruta del archivo>            → trae un adjunto de tu bot de Telegram
 //   GET  /meta?u=<enlace>                  → título, descripción e imagen de una página (vista previa)
@@ -36,14 +36,21 @@ async function meta(d) {
   return { url: r.url || d.href, titulo: M["og:title"] || M["twitter:title"] || tt, desc: (M["og:description"] || M["twitter:description"] || M["description"] || "").slice(0, 800), imagen: img, sitio: M["og:site_name"] || h, autor: M["author"] || M["article:author"] || "", fecha: M["article:published_time"] || "" };
 }
 async function tg(bot, chat, texto) { const r = await fetch(`https://api.telegram.org/bot${bot}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chat, text: texto.slice(0, 4000), disable_web_page_preview: true }) }); return r.ok }
+const claveCfg = chat => "cfg:" + String(chat);
+async function leerCfg(env, chat) { let c = await env.AVISOS.get(claveCfg(chat), "json"); if (!c) { const v = await env.AVISOS.get("cfg", "json"); if (v && String(v.chat) === String(chat)) c = v } return c }
+async function enviarDe(env, k) {
+  const c = await env.AVISOS.get(k, "json"); if (!c || !c.bot || !c.chat || !Array.isArray(c.lista)) return 0;
+  const ahora = Date.now(), env6 = new Set(c.enviados || []); let n = 0;
+  for (const a of c.lista) { if (a.t > ahora || a.t < ahora - 6 * 3600e3 || env6.has(a.id)) continue; if (await tg(c.bot, c.chat, a.txt)) { env6.add(a.id); n++ } }
+  if (n) { const vivos = new Set(c.lista.map(a => a.id)); c.enviados = [...env6].filter(id => vivos.has(id)).slice(-3000); await env.AVISOS.put(k, JSON.stringify(c)) }
+  return n;
+}
 async function enviarPendientes(env) {
   if (!env.AVISOS) return 0;
   // latido: deja constancia (cada ~30 min) de que la revisión programada está corriendo
   const lat = +(await env.AVISOS.get("latido") || 0); if (Date.now() - lat > 30 * 60e3) await env.AVISOS.put("latido", String(Date.now()));
-  const c = await env.AVISOS.get("cfg", "json"); if (!c || !c.bot || !c.chat || !Array.isArray(c.lista)) return 0;
-  const ahora = Date.now(), env6 = new Set(c.enviados || []); let n = 0;
-  for (const a of c.lista) { if (a.t > ahora || a.t < ahora - 6 * 3600e3 || env6.has(a.id)) continue; if (await tg(c.bot, c.chat, a.txt)) { env6.add(a.id); n++ } }
-  if (n) { const vivos = new Set(c.lista.map(a => a.id)); c.enviados = [...env6].filter(id => vivos.has(id)).slice(-3000); await env.AVISOS.put("cfg", JSON.stringify(c)) }
+  let n = 0; const L = await env.AVISOS.list({ prefix: "cfg" });
+  for (const k of L.keys.slice(0, 20)) n += await enviarDe(env, k.name);
   return n;
 }
 export default {
@@ -61,12 +68,13 @@ export default {
       if (u.pathname !== "/avisos") return no(404, "No existe");
       if (!env.AVISOS) return no(500, "Falta el espacio KV «AVISOS» (Configuración del Worker → Vinculaciones → KV)");
       const lista = (Array.isArray(b.lista) ? b.lista : []).filter(a => a && /^[\w-]{2,80}$/.test(String(a.id)) && Number.isFinite(+a.t) && typeof a.txt === "string").slice(0, 800).map(a => ({ id: String(a.id), t: +a.t, txt: a.txt.slice(0, 1500) }));
-      const prev = (await env.AVISOS.get("cfg", "json")) || {};
-      await env.AVISOS.put("cfg", JSON.stringify({ bot, chat: String(b.chat), lista, enviados: prev.enviados || [], subido: Date.now() }));
+      const prev = (await leerCfg(env, b.chat)) || {};
+      await env.AVISOS.put(claveCfg(b.chat), JSON.stringify({ bot, chat: String(b.chat), lista, enviados: prev.enviados || [], subido: Date.now() }));
+      const vieja = await env.AVISOS.get("cfg", "json"); if (vieja && String(vieja.chat) === String(b.chat)) await env.AVISOS.delete("cfg");
       return json({ ok: true, n: lista.length });
     }
     if (req.method !== "GET") return no(405, "Método no permitido");
-    if (u.pathname === "/avisos/estado") { if (!env.AVISOS) return json({ kv: false }); const c = (await env.AVISOS.get("cfg", "json")) || {}, ahora = Date.now(), L = c.lista || [], env6 = new Set(c.enviados || []);
+    if (u.pathname === "/avisos/estado") { if (!env.AVISOS) return json({ kv: false }); const ch = u.searchParams.get("chat") || ""; const c = (RE_CHAT.test(ch) ? await leerCfg(env, ch) : await env.AVISOS.get("cfg", "json")) || {}, ahora = Date.now(), L = c.lista || [], env6 = new Set(c.enviados || []);
       const prox = L.filter(a => a.t > ahora - 6 * 3600e3 && !env6.has(a.id)).sort((a, b) => a.t - b.t)[0];
       return json({ kv: true, subido: c.subido || 0, n: L.length, pendientes: L.filter(a => !env6.has(a.id) && a.t > ahora).length, enviados: env6.size, proximo: prox ? prox.t : 0, latido: +(await env.AVISOS.get("latido") || 0), ahora }) }
     if (u.pathname === "/meta") { const d = urlPublica(u.searchParams.get("u")); if (!d) return no(400, "Dirección no permitida"); try { return json(await meta(d)) } catch (e) { return json({ url: d.href, error: String(e && e.message || e) }) } }
@@ -87,7 +95,7 @@ export default {
       const ruta = u.pathname.slice(4);
       if (!/^[\w./-]{1,300}$/.test(ruta) || ruta.includes("..")) return no(400, "Ruta no válida");
       destino = new URL(`https://api.telegram.org/file/bot${bot}/${ruta}`);
-    } else if (u.pathname === "/version") return json({ v: 3, avisos: !!env.AVISOS });
+    } else if (u.pathname === "/version") return json({ v: 4, avisos: !!env.AVISOS });
     else return no(404, "No existe");
     const r = await fetch(destino.href, { headers: { "User-Agent": "Memphis" }, redirect: "follow", cf: { cacheTtl: 0 } });
     const h = new Headers(cors);

@@ -202,6 +202,15 @@ Portada al abrir (desactivable): saludo, **caja que entiende lo que escribes** (
 - Panel «🔗 Relacionar» en el editor: lo de ese día, lo parecido y una búsqueda para ligar.
 - Personas con **campos extra** libres; listas de personas, lugares y temas en grupos plegables (los más usados primero). Cursos con **campos propios** por curso (p. ej. «Grupo»), editables en la tabla, para agrupar y exportar.
 
+## 👨‍👩‍👧 Familia: perfiles, salud ampliada y compartir en pareja
+- **Perfiles**: varias personas usan el mismo enlace, cada una con su frase, sus datos y su carpeta en el mismo Dropbox (o en el suyo). En la pantalla de clave: «cambiar de perfil». En Ajustes: **nombre de la app**, **ícono** (8 para elegir), **módulos visibles** y «Mudarme a otro Dropbox». Tema **🌸 Rosa** y color de botones rosa.
+- **🌸 Ciclo** (Salud): sangrado y molestias con intensidad, predicción del próximo período con tu historial, ventana fértil, retrasos, embarazo (semanas y fecha probable) o menopausia, recordatorio de la pastilla y aviso por Telegram. Son estimaciones: no es un método anticonceptivo.
+- **🔒 Íntimo**: registro personal cifrado con tu PIN (fecha, protección, valoración, etiquetas propias, comentarios). Nunca se comparte ni aparece en búsquedas.
+- **🍽 Comidas**: escribe lo que comiste («2 huevos pericos con arepa y café con leche») y calcula calorías y proteína aproximadas con una tabla de alimentos colombianos ampliable; agua, metas y semana.
+- **🌿 Bienestar y ✅ chequeos preventivos**: ánimo, energía, estrés, sueño, ejercicio; chequeos con su frecuencia y aviso una semana antes.
+- **🤝 Compartir con mi pareja** (Ajustes): se emparejan con un código; cada uno elige qué comparte (salud de los hijos u otro familiar, finanzas solo en totales o por categoría, cuentas comunes con detalle, agenda #familia) y puede quitarlo cuando quiera. Vista «Nuestras finanzas» con quién puso cuánto en lo común.
+- El Worker v4 guarda una lista de avisos por persona (cada una con su bot y su chat de Telegram).
+
 ## 🖱 Menú de acciones, selección múltiple y teclado
 - **Clic derecho** (PC) o **mantener presionado** (celular) sobre una nota, actividad, tarea, persona, lugar, movimiento, elemento de la Biblioteca, estudiante o día de la agenda abre sus acciones: editar, recordarme, mover de día, convertir, ligar, asignar proyecto, duplicar, compartir, crear regla, dividir gasto, copiar cita, unir fichas duplicadas, asignar Grupo… En el celular sale como hoja desde abajo.
 - **☑ Seleccionar varios**: toca otros elementos del mismo tipo y aplica una acción a todos desde la barra naranja.

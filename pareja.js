@@ -1,0 +1,134 @@
+// =====================================================================================================
+// Memphis · 🤝 COMPARTIR CON MI PAREJA
+// · Se emparejan una vez con un código de 12 caracteres: así nace una LLAVE DE PAREJA (AES-256) distinta de la frase
+//   de cada uno. Lo compartido viaja cifrado con esa llave en /pareja/<id>/ del Dropbox que comparten (perfiles).
+// · Nada se comparte por defecto: cada uno elige personas (su ficha y su salud), el nivel de las finanzas
+//   (nada · solo totales · por categoría) y las cuentas o categorías comunes (esas sí con detalle), y la agenda #familia.
+// · El ciclo, el registro íntimo, el diario personal y los demás gastos NUNCA se incluyen.
+// · Quitar algo o terminar el emparejamiento borra lo publicado; la otra app borra lo recibido en su siguiente sincronización.
+// =====================================================================================================
+"use strict";
+CONFIG_EXTRA.push("pareja","parejaIn");
+const PAR={ocupado:false,ult:0,llave:null,llaveDe:""};
+const ABC32="0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+const codigoPar=()=>{const b=crypto.getRandomValues(new Uint8Array(12));return[...b].map(x=>ABC32[x&31]).join("")};
+const fmtCod=c=>c.replace(/(.{4})(?=.)/g,"$1-");
+const limpiaCod=c=>String(c||"").toUpperCase().replace(/[^0-9A-Z]/g,"").replace(/O/g,"0").replace(/[IL]/g,"1").replace(/U/g,"V");
+async function hexSha(t){return[...new Uint8Array(await crypto.subtle.digest("SHA-256",enc.encode(t)))].map(b=>b.toString(16).padStart(2,"0")).join("")}
+async function llaveCodigo(cod,salt){const k=await crypto.subtle.importKey("raw",enc.encode(cod),"PBKDF2",false,["deriveKey"]);return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:600000,hash:"SHA-256"},k,{name:"AES-GCM",length:256},false,["encrypt","decrypt"])}
+async function llavePar(){const P=S.pareja;if(!P||!P.k)return null;if(PAR.llave&&PAR.llaveDe===P.pid)return PAR.llave;PAR.llave=await crypto.subtle.importKey("raw",b64u8(P.k),{name:"AES-GCM"},false,["encrypt","decrypt"]);PAR.llaveDe=P.pid;return PAR.llave}
+async function cifrarPar(obj,quien){const k=await llavePar(),iv=crypto.getRandomValues(new Uint8Array(12));return JSON.stringify({v:1,iv:u8b64(iv),ct:u8b64(new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv,additionalData:enc.encode(S.pareja.pid+"|"+quien)},k,enc.encode(JSON.stringify(obj)))))})}
+async function descifrarPar(txt,quien){const o=JSON.parse(txt),k=await llavePar();return JSON.parse(dec.decode(await crypto.subtle.decrypt({name:"AES-GCM",iv:b64u8(o.iv),additionalData:enc.encode(S.pareja.pid+"|"+quien)},k,b64u8(o.ct))))}
+const otroDe=y=>y==="a"?"b":"a";
+const miNombreP=()=>(S.pareja&&S.pareja.miNombre)||PAR.nombre||(typeof nombrePerfil==="function"?nombrePerfil(PERFIL):"")||"Yo";
+// ---------------------------------------------------------------- emparejar
+async function crearInvitacion(){if(!conDropbox()){alert("Para compartir, los dos deben usar el mismo Dropbox (cada uno con su perfil). Conecta Dropbox primero.");return}
+  const cod=codigoPar(),pid=u8b64(crypto.getRandomValues(new Uint8Array(9))).replace(/[^\w]/g,"x"),kRaw=crypto.getRandomValues(new Uint8Array(32)),salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12));
+  const k=await llaveCodigo(cod,salt),ct=await crypto.subtle.encrypt({name:"AES-GCM",iv,additionalData:enc.encode("invitacion")},k,enc.encode(JSON.stringify({pid,k:u8b64(kRaw),de:miNombreP()})));
+  const h=(await hexSha("memphis-pareja|"+cod)).slice(0,20);
+  await dbxUp(`/pareja/inv-${h}.json`,JSON.stringify({v:1,salt:u8b64(salt),iv:u8b64(iv),ct:u8b64(new Uint8Array(ct)),exp:Date.now()+3*864e5}),{".tag":"overwrite"});
+  S.pareja={pid,k:u8b64(kRaw),yo:"a",estado:"invitando",cod,inv:h,miNombre:miNombreP(),otro:"",desde:"",comp:{personas:[],fin:"nada",ctas:[],cats:[],agenda:false},hashPub:"",revIn:""};changed();render()}
+async function aceptarCodigo(txt){const cod=limpiaCod(txt);if(cod.length!==12){alert("El código tiene 12 caracteres (letras y números).");return false}if(!conDropbox()){alert("Conecta primero el mismo Dropbox que usa tu pareja.");return false}
+  const h=(await hexSha("memphis-pareja|"+cod)).slice(0,20),d=await dbxDown(`/pareja/inv-${h}.json`);if(!d){alert("No encontré esa invitación. Revisa el código y que los dos estén en el mismo Dropbox (cada uno con su perfil).");return false}
+  try{const o=JSON.parse(dec.decode(d.bytes));if(o.exp&&o.exp<Date.now()){alert("La invitación venció. Pide un código nuevo.");return false}
+    const k=await llaveCodigo(cod,b64u8(o.salt)),x=JSON.parse(dec.decode(await crypto.subtle.decrypt({name:"AES-GCM",iv:b64u8(o.iv),additionalData:enc.encode("invitacion")},k,b64u8(o.ct))));
+    S.pareja={pid:x.pid,k:x.k,yo:"b",estado:"activo",miNombre:miNombreP(),otro:String(x.de||"Mi pareja").slice(0,40),desde:hoyISO(),comp:{personas:[],fin:"nada",ctas:[],cats:[],agenda:false},hashPub:"",revIn:""};PAR.llave=null;
+    changed();await publicarPar(true);aviso("🤝 Emparejados con "+S.pareja.otro);return true}catch(e){alert("El código no coincide.");return false}}
+async function terminarPar(){if(!S.pareja)return;if(!confirm(`¿Terminar el emparejamiento${S.pareja.otro?" con "+S.pareja.otro:""}? Se borra lo que publicaste y lo que recibiste. Para volver a compartir tendrían que emparejarse de nuevo.`))return;
+  const P=S.pareja;try{if(P.estado==="activo"&&conDropbox()){await dbxUp(`/pareja/${P.pid}/${P.yo}.json`,await cifrarPar({revocado:true,t:Date.now()},P.yo),{".tag":"overwrite"})}if(P.inv)await dbxBorrar(`/pareja/inv-${P.inv}.json`)}catch(e){}
+  S.pareja=null;S.parejaIn=null;PAR.llave=null;changed();render();aviso("🤝 Emparejamiento terminado")}
+// ---------------------------------------------------------------- qué publico
+const mesesAtras=n=>{const out=[];const d=new Date();d.setDate(1);for(let i=0;i<n;i++){out.push(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"));d.setMonth(d.getMonth()-1)}return out};
+function resumenFin(L,conCats){const M={};for(const m of L){const c=calc(m),k=m.fecha.slice(0,7);if(!M[k])M[k]={gasto:0,ingreso:0,cats:{}};M[k].gasto+=c.gasto;M[k].ingreso+=c.ingreso;if(conCats&&c.gasto){const ca=m.categoria||"Sin categoría";M[k].cats[ca]=(M[k].cats[ca]||0)+c.gasto}}
+  for(const k in M){M[k].gasto=Math.round(M[k].gasto);M[k].ingreso=Math.round(M[k].ingreso);for(const c in M[k].cats)M[k].cats[c]=Math.round(M[k].cats[c])}return M}
+function esComun(m){const C=S.pareja.comp;return(C.ctas||[]).includes(m.cuenta)||(C.cats||[]).includes(m.categoria)}
+function paquetePar(){const P=S.pareja,C=P.comp,desde=mesesAtras(12).pop()+"-01",L=(S.mov||[]).filter(m=>m.fecha>=desde);
+  const pk={v:1,de:P.miNombre||miNombreP(),t:Date.now(),personas:[],fin:{nivel:C.fin||"nada",meses:{},det:[],ctas:C.ctas||[],cats:C.cats||[]},agenda:[]};
+  for(const n of C.personas||[]){const f=fichaDe(n,"persona"),d=f?datosP(f):{},pf=typeof perfilDe==="function"?perfilDe(n):null;
+    pk.personas.push({nombre:f?f.nombre:n,datos:{rel:d.rel||"",cumple:d.cumple||"",tel:d.tel||[],email:d.email||[],org:d.org||"",extra:d.extra||[]},perfil:pf?Object.fromEntries(Object.entries(pf).filter(([k])=>!/^(adjuntos|id|editado|creado)$/.test(k))):null,
+      salud:(S.salud||[]).filter(r=>typeof esDe==="function"&&esDe(r,n)).map(r=>({fecha:r.fecha,hora:r.hora,tipo:r.tipo,titulo:r.titulo,texto:r.texto,estado:r.estado,medico:r.medico,esp:r.esp,lugar:r.lugar,sintomas:r.sintomas,meds:r.meds,vacunas:r.vacunas,medidas:r.medidas,nAdj:(r.adjuntos||[]).length})).slice(-300)})}
+  if(C.fin==="total"||C.fin==="cat")pk.fin.meses=resumenFin(L,C.fin==="cat");
+  if((C.ctas||[]).length||(C.cats||[]).length)pk.fin.det=L.filter(esComun).map(m=>{const c=calc(m);return{f:m.fecha,g:Math.round(c.gasto),i:Math.round(c.ingreso),cat:m.categoria||"",cta:m.cuenta||"",d:(m.estab||m.concepto||m.desc||"").slice(0,80)}}).filter(x=>x.g||x.i).slice(-2000);
+  if(C.agenda)pk.agenda=(S.diario||[]).filter(e=>!e.priv&&e.tipo==="evento"&&e.fecha>=masDias(hoyISO(),-30)&&/#familia\b/i.test((e.titulo||"")+" "+(e.texto||""))).map(e=>({f:e.fecha,h:e.hora||"",hf:e.horaFin||"",ff:e.fechaFin||"",t:(e.titulo||"").replace(/#familia\b/gi,"").trim(),l:e.lugar||""})).slice(0,300);
+  return pk}
+// ---------------------------------------------------------------- sincronizar
+async function publicarPar(forzar){const P=S.pareja;if(!P||P.estado!=="activo")return;const pk=paquetePar(),h=await hexSha(JSON.stringify({...pk,t:0}));if(!forzar&&h===P.hashPub)return;
+  await dbxUp(`/pareja/${P.pid}/${P.yo}.json`,await cifrarPar(pk,P.yo),{".tag":"overwrite"});P.hashPub=h;P.pub=Date.now();changed()}
+async function syncPar(forzar){const P=S&&S.pareja;if(!P||!conDropbox()||PAR.ocupado)return;if(!forzar&&Date.now()-PAR.ult<90e3)return;PAR.ocupado=true;PAR.ult=Date.now();
+  try{const otro=otroDe(P.yo),ruta=`/pareja/${P.pid}/${otro}.json`,meta=await dbxMeta(ruta);
+    if(P.estado==="invitando"){if(meta){P.estado="activo";P.desde=hoyISO();try{await dbxBorrar(`/pareja/inv-${P.inv}.json`)}catch(e){}delete P.cod;changed();aviso("🤝 Tu pareja aceptó: ya están emparejados")}else return}
+    if(meta&&meta.rev!==P.revIn){const d=await dbxDown(ruta);if(d){const pk=await descifrarPar(dec.decode(d.bytes),otro);
+      if(pk.revocado){S.parejaIn=null;S.pareja=null;PAR.llave=null;try{await dbxBorrar(`/pareja/${P.pid}`)}catch(e){}changed();aviso("🤝 Tu pareja terminó el emparejamiento: se borró lo compartido");render();return}
+      S.parejaIn=pk;P.otro=String(pk.de||P.otro||"").slice(0,40);P.revIn=meta.rev;P.recibido=Date.now();changed()}}
+    await publicarPar(forzar)}catch(e){P.error=String(e.message||e).slice(0,200)}finally{PAR.ocupado=false}}
+window.addEventListener("load",()=>{const ds=window.dbxSync;if(typeof ds==="function")window.dbxSync=async function(motivo){const r=await ds.apply(this,arguments);try{await syncPar(motivo==="manual")}catch(e){}return r}});
+// ---------------------------------------------------------------- tarjeta en Ajustes
+function tarjetaPareja(){const P=S.pareja;let h=`<div class="card" id="ajPareja"><h2>🤝 Compartir con mi pareja</h2>`;
+  if(!P)return h+`<p class="small">Comparte solo lo que elijas (salud de los hijos o de un familiar, un resumen de tus gastos, cuentas comunes, la agenda familiar). Todo viaja cifrado con una llave que solo tienen ustedes dos. Necesitan estar en el <b>mismo Dropbox</b>, cada uno con su perfil.</p>
+   <label>Tu nombre para tu pareja<input id="paNom" value="${esc(miNombreP())}" maxlength="40"></label><div class="filters" style="margin-top:8px"><button class="b p" id="paInv">Emparejar: mostrar mi código</button><button class="b" id="paAcep">Tengo un código</button></div></div>`;
+  if(P.estado==="invitando")return h+`<p>Dile a tu pareja que, en su Memphis (Ajustes › 🤝 Compartir con mi pareja › «Tengo un código»), escriba:</p><p class="pacod">${esc(fmtCod(P.cod||""))}</p><p class="small muted">Vence en 3 días. Cuando lo acepte, aquí aparecerá emparejado (se revisa al sincronizar).</p><div class="filters"><button class="b s" id="paRev">Revisar ahora</button><button class="b s" id="paFin">Cancelar</button></div></div>`;
+  const C=P.comp,personas=[...new Set([...(S.fichas||[]).filter(f=>f.tipo==="persona").map(f=>f.nombre),...(S.perfilesSalud||[]).map(p=>p.nombre)])].sort((a,b)=>a.localeCompare(b,"es")),cats=[...new Set((S.mov||[]).map(m=>m.categoria).filter(Boolean))].sort();
+  const chk=(cls,v,on)=>`<label class="fchip ${on?"on":"off"}"><input type="checkbox" class="${cls}" value="${esc(v)}" ${on?"checked":""} hidden>${esc(v)}</label>`;
+  return h+`<p>Emparejado con <b>${esc(P.otro||"tu pareja")}</b>${P.desde?" desde el "+esc(fechaCorta(P.desde)):""}. ${P.recibido?`<span class="small muted">Recibido: ${esc(new Date(P.recibido).toLocaleString("es-CO"))}.</span>`:""}</p>
+   <h3>Lo que compartes tú</h3><p class="small muted">Nada se comparte si no lo marcas. Lo íntimo, el ciclo, tu diario y los demás gastos nunca se comparten.</p>
+   <label>👤 Personas (su ficha, perfil y registros de salud)</label><div class="opc">${personas.map(n=>chk("paPer",n,(C.personas||[]).includes(n))).join("")||'<span class="small muted">Crea primero las fichas (p. ej. tus hijos).</span>'}</div>
+   <label style="margin-top:8px">💰 Tus finanzas</label><select id="paFin2"><option value="nada" ${C.fin==="nada"?"selected":""}>No compartir</option><option value="total" ${C.fin==="total"?"selected":""}>Solo totales del mes (sin detalle)</option><option value="cat" ${C.fin==="cat"?"selected":""}>Totales por categoría (sin cada compra)</option></select>
+   <label style="margin-top:8px">🏠 Cuentas en común <span class="small muted">(de estas sí va el detalle de cada movimiento)</span></label><div class="opc">${(S.cuentas||[]).map(c=>chk("paCta",c,(C.ctas||[]).includes(c))).join("")}</div>
+   <label style="margin-top:8px">🛒 Categorías en común <span class="small muted">(p. ej. Mercado, Colegio: detalle de esas compras)</span></label><div class="opc">${cats.map(c=>chk("paCat",c,(C.cats||[]).includes(c))).join("")}</div>
+   <label style="margin-top:8px"><input type="checkbox" id="paAg" ${C.agenda?"checked":""}> 📅 Compartir las actividades marcadas con <b>#familia</b></label>
+   <div class="filters" style="margin-top:10px"><button class="b p" id="paVer">👀 Ver lo compartido</button><button class="b s" id="paPub">Publicar ahora</button><button class="b s" id="paFin">Terminar emparejamiento</button></div>${P.error?`<p class="small neg">Último error: ${esc(P.error)}</p>`:""}</div>`}
+function bindPareja(){if(!$("#ajPareja"))return;const P=S.pareja;const nom=$("#paNom");
+  if($("#paInv"))$("#paInv").onclick=async()=>{PAR.nombre=nom.value.trim().slice(0,40);try{await crearInvitacion();reAj()}catch(e){alert("No se pudo crear la invitación: "+e.message)}};
+  if($("#paAcep"))$("#paAcep").onclick=async()=>{const c=prompt("Escribe el código de 12 caracteres que te muestra tu pareja:");if(!c)return;PAR.nombre=nom.value.trim().slice(0,40);if(await aceptarCodigo(c))reAj()};
+  if($("#paRev"))$("#paRev").onclick=async()=>{await syncPar(true);reAj()};if($("#paFin"))$("#paFin").onclick=async()=>{await terminarPar();reAj()};
+  if(!P||P.estado!=="activo")return;const C=P.comp;
+  const lee=()=>{C.personas=[...document.querySelectorAll(".paPer:checked")].map(x=>x.value);C.ctas=[...document.querySelectorAll(".paCta:checked")].map(x=>x.value);C.cats=[...document.querySelectorAll(".paCat:checked")].map(x=>x.value);C.fin=$("#paFin2").value;C.agenda=$("#paAg").checked;changed();clearTimeout(PAR.t);PAR.t=setTimeout(()=>syncPar(true),1500)};
+  document.querySelectorAll(".paPer,.paCta,.paCat").forEach(x=>x.onchange=()=>{x.parentElement.className="fchip "+(x.checked?"on":"off");lee()});$("#paFin2").onchange=lee;$("#paAg").onchange=lee;
+  $("#paVer").onclick=()=>verPareja();$("#paPub").onclick=async()=>{await syncPar(true);aviso("🤝 Publicado");reAj()}}
+function reAj(){const c=$("#ajPareja");if(!c)return;c.outerHTML=tarjetaPareja();bindPareja()}
+window.addEventListener("load",()=>{const ra=window.reorganizarAjustes;if(typeof ra==="function")window.reorganizarAjustes=function(){const r=ra.apply(this,arguments);const s=$("#ajs-datos");if(s&&S&&!$("#ajPareja")){s.insertAdjacentHTML("afterbegin",tarjetaPareja());bindPareja()}return r}});
+// ---------------------------------------------------------------- ver lo compartido
+const PV={tab:"fin",mes:""};
+function verPareja(){const I=S.parejaIn,P=S.pareja;if(!P||P.estado!=="activo"){alert("Aún no están emparejados.");return}
+  let d=$("#paDlg");if(!d){d=document.createElement("dialog");d.id="paDlg";document.body.appendChild(d)}
+  const tabs=[["fin","💰 Finanzas"],["fam","👨‍👩‍👧 Familia"],["ag","📅 Agenda"]];
+  d.innerHTML=`<div class="filters" style="justify-content:space-between"><h2 style="margin:0">🤝 Con ${esc(P.otro||"tu pareja")}</h2><button class="b s" id="paX">✕</button></div>
+   <div class="seg" style="margin:8px 0">${tabs.map(([k,l])=>`<button data-pvt="${k}" class="${PV.tab===k?"on":""}">${l}</button>`).join("")}</div><div id="paB">${!I?'<p class="small muted">Todavía no ha llegado nada de tu pareja (o aún no ha elegido qué compartir).</p>':PV.tab==="fin"?pvFin(I):PV.tab==="fam"?pvFam(I):pvAg(I)}</div>`;
+  if(!d.open)d.showModal();$("#paX").onclick=()=>d.close();d.querySelectorAll("[data-pvt]").forEach(b=>b.onclick=()=>{PV.tab=b.dataset.pvt;verPareja()});
+  d.querySelectorAll("[data-pvm]").forEach(s=>s.onchange=()=>{PV.mes=s.value;verPareja()})}
+function pvFin(I){const F=I.fin||{},M=mesesAtras(12),mes=PV.mes||M[0],otro=esc(S.pareja.otro||"Pareja"),mine=resumenFin((S.mov||[]).filter(m=>m.fecha.startsWith(mes)),true)[mes]||{gasto:0,ingreso:0,cats:{}},suyo=(F.meses||{})[mes];
+  let h=`<label>Mes <select data-pvm="1">${M.map(m=>`<option value="${m}" ${m===mes?"selected":""}>${esc(dDe(m+"-01").toLocaleDateString("es-CO",{month:"long",year:"numeric"}))}</option>`).join("")}</select></label>`;
+  if(F.nivel==="nada"&&!(F.det||[]).length)return h+`<p class="small muted">${otro} no comparte sus finanzas.</p>`;
+  if(suyo){const ant=M[M.indexOf(mes)+1],sa=ant&&(F.meses||{})[ant],mia=ant?(resumenFin((S.mov||[]).filter(m=>m.fecha.startsWith(ant)),false)[ant]||{gasto:0}):null,hog=mine.gasto+suyo.gasto,hogA=sa&&mia?mia.gasto+sa.gasto:0;
+    h+=`<div class="ajg" style="margin-top:8px"><div><b>${fmt(mine.gasto)}</b><div class="small muted">gastaste tú</div></div><div><b>${fmt(suyo.gasto)}</b><div class="small muted">gastó ${otro}</div></div><div><b>${fmt(hog)}</b><div class="small muted">hogar${hogA?` · ${hog>hogA?"▲":"▼"} ${Math.abs(Math.round((hog-hogA)/hogA*100))}% vs. mes anterior`:""}</div></div></div>`;
+    if(F.nivel==="cat"){const cats=[...new Set([...Object.keys(mine.cats),...Object.keys(suyo.cats||{})])].map(c=>({c,a:mine.cats[c]||0,b:(suyo.cats||{})[c]||0})).sort((x,y)=>y.a+y.b-x.a-x.b);
+      h+=`<h3>Por categoría</h3><div class="tabla-c-wrap"><table class="tabla-c small"><tr><th>Categoría</th><th class="n">Tú</th><th class="n">${otro}</th><th class="n">Hogar</th></tr>${cats.slice(0,25).map(x=>`<tr><td>${esc(x.c)}</td><td class="n">${fmt(x.a)}</td><td class="n">${fmt(x.b)}</td><td class="n"><b>${fmt(x.a+x.b)}</b></td></tr>`).join("")}</table></div>`}
+    const serie=M.slice(0,6).reverse().map(m=>({m,v:((F.meses||{})[m]||{gasto:0}).gasto+((resumenFin((S.mov||[]).filter(x=>x.fecha.startsWith(m)),false)[m]||{gasto:0}).gasto)})),mx=Math.max(1,...serie.map(x=>x.v));
+    h+=`<h3>Hogar, últimos 6 meses</h3><div class="cosem">${serie.map(x=>`<div title="${fmt(x.v)}"><span style="height:${x.v/mx*100}%"></span><small>${esc(dDe(x.m+"-01").toLocaleDateString("es-CO",{month:"short"}))}</small></div>`).join("")}</div>`}
+  else if(F.nivel!=="nada")h+=`<p class="small muted">No hay datos de ${otro} para ese mes.</p>`;
+  const det=(F.det||[]).filter(x=>x.f.startsWith(mes)),C=S.pareja.comp,mios=(S.mov||[]).filter(m=>m.fecha.startsWith(mes)&&esComun(m)).map(m=>{const c=calc(m);return{f:m.fecha,g:Math.round(c.gasto),cat:m.categoria||"",cta:m.cuenta||"",d:(m.estab||m.concepto||m.desc||"").slice(0,80),yo:1}}).filter(x=>x.g);
+  if(det.length||mios.length){const tA=mios.reduce((a,x)=>a+x.g,0),tB=det.reduce((a,x)=>a+x.g,0),dif=Math.round((tA-tB)/2);
+    h+=`<h3>🏠 Gastos en común</h3><p class="small muted">Tus cuentas/categorías comunes: ${esc([...(C.ctas||[]),...(C.cats||[])].join(", ")||"ninguna")} · las de ${otro}: ${esc([...(F.ctas||[]),...(F.cats||[])].join(", ")||"ninguna")}</p>
+     <div class="ajg"><div><b>${fmt(tA)}</b><div class="small muted">pusiste tú</div></div><div><b>${fmt(tB)}</b><div class="small muted">puso ${otro}</div></div><div><b>${dif===0?"A mano":dif>0?`${otro} te debe ${fmt(dif)}`:`Le debes ${fmt(-dif)}`}</b><div class="small muted">si dividen por mitades</div></div></div>
+     <div class="tabla-c-wrap"><table class="tabla-c small"><tr><th>Fecha</th><th>Quién</th><th>Detalle</th><th>Categoría</th><th class="n">Valor</th></tr>${[...mios,...det].sort((a,b)=>b.f.localeCompare(a.f)).slice(0,200).map(x=>`<tr><td>${esc(fechaCorta(x.f))}</td><td>${x.yo?"Tú":otro}</td><td>${esc(x.d)}</td><td>${esc(x.cat)}</td><td class="n">${fmt(x.g)}</td></tr>`).join("")}</table></div>`}
+  return h}
+function pvFam(I){const L=I.personas||[];if(!L.length)return`<p class="small muted">${esc(S.pareja.otro||"Tu pareja")} no comparte información de personas.</p>`;
+  return L.map(p=>{const d=p.datos||{};return`<details class="pgrp" open><summary>👤 ${esc(p.nombre)}<span class="cnt">${(p.salud||[]).length} registros</span></summary><div style="padding:6px 10px">
+   ${[d.rel&&"Relación: "+d.rel,d.cumple&&"Cumpleaños: "+d.cumple,(d.tel||[]).length&&"Tel: "+d.tel.join(", "),...(d.extra||[]).map(x=>x.k+": "+x.v)].filter(Boolean).map(x=>`<div class="small">${esc(x)}</div>`).join("")}
+   ${p.perfil?`<div class="small">${Object.entries(p.perfil).filter(([k,v])=>v&&typeof v!=="object"&&k!=="nombre").map(([k,v])=>`<b>${esc(k)}:</b> ${esc(String(v).slice(0,200))}`).join(" · ")}</div>`:""}
+   ${(p.salud||[]).slice().sort((a,b)=>b.fecha.localeCompare(a.fecha)).slice(0,80).map(r=>`<details class="small" style="margin-top:4px"><summary>${esc((STIPOS[r.tipo]||["📝"])[0])} ${esc(fechaCorta(r.fecha))} · ${esc(r.titulo||(r.sintomas||[]).join(", ")||"Registro")}${r.estado?` <span class="chip">${esc(r.estado)}</span>`:""}</summary>
+     <div style="padding:4px 8px">${r.medico?`<div>🩺 ${esc(r.medico)}${r.esp?" · "+esc(r.esp):""}</div>`:""}${(r.meds||[]).map(m=>`<div>💊 ${esc(m.n)} ${esc(m.dosis||"")}${m.cadaH?" cada "+m.cadaH+" h":""}${m.dias?" por "+m.dias+" días":""}</div>`).join("")}${(r.vacunas||[]).map(v=>`<div>💉 ${esc(v.v)} ${esc(v.dosis||"")}</div>`).join("")}
+     ${r.texto?`<div class="md">${md(r.texto)}</div>`:""}${r.nAdj?`<div class="muted">📎 ${r.nAdj} adjunto(s) que no se comparten (pídeselos si los necesitas)</div>`:""}</div></details>`).join("")}</div></details>`}).join("")}
+function pvAg(I){const L=(I.agenda||[]).filter(e=>(e.ff||e.f)>=hoyISO()).sort((a,b)=>(a.f+a.h).localeCompare(b.f+b.h));
+  const mias=(S.diario||[]).filter(e=>!e.priv&&e.tipo==="evento"&&e.fecha>=hoyISO()&&/#familia\b/i.test((e.titulo||"")+" "+(e.texto||""))).map(e=>({f:e.fecha,h:e.hora||"",t:(e.titulo||"").replace(/#familia\b/gi,"").trim(),l:e.lugar||"",yo:1}));
+  const T=[...L,...mias].sort((a,b)=>(a.f+a.h).localeCompare(b.f+b.h));
+  return`<p class="small muted">Actividades con <b>#familia</b> de los dos (las tuyas se comparten si lo activas en Ajustes).</p>${T.length?T.slice(0,100).map(e=>`<div class="vrow small"><span style="min-width:110px">${esc(fechaCorta(e.f))}${e.h?" "+esc(e.h):""}</span><span style="flex:1">${esc(e.t||"Actividad")}${e.l?` <span class="muted">· 📍 ${esc(e.l)}</span>`:""}</span><span class="muted">${e.yo?"tú":esc(S.pareja.otro||"")}</span></div>`).join(""):'<p class="small muted">No hay actividades familiares próximas.</p>'}`}
+// ---------------------------------------------------------------- accesos: Inicio, menú contextual
+window.addEventListener("load",()=>{
+  const pa=window.porAtenderHtml;if(typeof pa==="function")window.porAtenderHtml=function(){let h=pa.apply(this,arguments);if(!S||!S.pareja||S.pareja.estado!=="activo"||!S.parejaIn)return h;
+    return h.replace('<h2>📌 Por atender</h2>','<h2>📌 Por atender</h2>'+`<div class="vrow small click" id="iPar"><span style="flex:1">🤝 Lo que comparte ${esc(S.pareja.otro||"tu pareja")}</span><span class="muted">ver →</span></div>`).replace('<p class="small muted">Todo al día ✔</p>',"")};
+  const bi=window.bindInicio;if(typeof bi==="function")window.bindInicio=function(){const r=bi.apply(this,arguments);const x=$("#iPar");if(x)x.onclick=()=>verPareja();return r};
+  const af=window.accionesF;if(typeof af==="function")window.accionesF=function(f){const A=af.apply(this,arguments);if(S.pareja&&S.pareja.estado==="activo"&&f.tipo==="persona"){const on=(S.pareja.comp.personas||[]).includes(f.nombre);
+    A.push(["🤝",on?"Dejar de compartir con "+(S.pareja.otro||"mi pareja"):"Compartir con "+(S.pareja.otro||"mi pareja"),()=>{const L=new Set(S.pareja.comp.personas||[]);if(on)L.delete(f.nombre);else L.add(f.nombre);S.pareja.comp.personas=[...L];changed();syncPar(true);aviso(on?"Ya no se comparte":"🤝 Se compartirá "+f.nombre)}])}return A};
+  const ad=window.accionesD;if(typeof ad==="function")window.accionesD=function(e){const A=ad.apply(this,arguments);if(e.tipo==="evento"&&!e.priv){const on=/#familia\b/i.test((e.titulo||"")+" "+(e.texto||""));
+    A.splice(Math.max(0,A.length-2),0,["👨‍👩‍👧",on?"Quitar de la agenda familiar":"Agenda familiar (#familia)",()=>{if(on){e.titulo=(e.titulo||"").replace(/\s*#familia\b/gi,"");e.texto=(e.texto||"").replace(/\s*#familia\b/gi,"")}else e.texto=((e.texto||"")+" #familia").trim();e.editado=new Date().toISOString();changed();render();if(S.pareja)syncPar(true)}])}return A}});

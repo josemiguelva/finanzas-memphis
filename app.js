@@ -1,5 +1,13 @@
 
 "use strict";
+// ======================= Perfiles: varias personas en el mismo dispositivo o en el mismo Dropbox =======================
+// Cada perfil tiene su base local, sus preferencias del dispositivo y su propia carpeta en Dropbox (/perfiles/<perfil>/…).
+// El perfil principal ("") usa las rutas de siempre. Un perfil nunca lee ni escribe fuera de su carpeta.
+const PERFIL=(()=>{try{const p=localStorage.getItem("memphisPerfil")||"";return/^[a-z0-9-]{1,24}$/.test(p)?p:""}catch(e){return""}})();
+const SUF_P=PERFIL?"_"+PERFIL:"";
+(()=>{if(!PERFIL)return;const G=Storage.prototype.getItem,P=Storage.prototype.setItem,R=Storage.prototype.removeItem,k=x=>/^memphis/.test(x)&&!/^memphisPerfil/.test(x)?x+SUF_P:x;
+  Storage.prototype.getItem=function(x){return G.call(this,k(String(x)))};Storage.prototype.setItem=function(x,v){return P.call(this,k(String(x)),v)};Storage.prototype.removeItem=function(x){return R.call(this,k(String(x)))}})();
+const rutaP=p=>{p=String(p||"");if(!PERFIL)return p;const r=p.startsWith("/")?p:"/"+p;return r.startsWith("/perfiles/")||r.startsWith("/pareja/")?r:"/perfiles/"+PERFIL+r};
 // apariencia de este dispositivo (antes de pintar nada)
 try{const t=localStorage.getItem("memphisTema"),a=localStorage.getItem("memphisAcento");if(t&&t!=="auto")document.documentElement.dataset.tema=t;if(a&&a!=="azul")document.documentElement.dataset.acento=a}catch(e){}
 // ======================= Datos base =======================
@@ -92,7 +100,7 @@ const isTC=c=>/VISA|MASTER|TC|TARJETA/i.test(c||"");
 //   clave = PBKDF2-SHA256(frase, salt, 600.000 iteraciones) → AES-256-GCM
 //   dentro va todo el estado, incluida la "llave de datos" (dek) con la que se cifran los adjuntos.
 // Adjunto (.fma): "FMA1" + iv(12) + AES-256-GCM(dek, contenido)  (AAD = "fma|"+sha)
-const APP_VERSION="2026.11.26-contexto";
+const APP_VERSION="2026.11.27-familia";
 const APP_ID="finanzas-memphis",FORMATO=3,ITER=600000,AAD_DATOS=new TextEncoder().encode("finanzas-memphis|datos");
 const CR={kek:null,salt:null,dek:null,deks:new Map()};
 const enc=new TextEncoder(),dec=new TextDecoder();
@@ -128,7 +136,7 @@ function fuerza(f){let p=0;if(f.length>=12)p++;if(f.length>=16)p++;if(f.length>=
 // ======================= Persistencia =======================
 // En este navegador (IndexedDB) solo se guarda el sobre CIFRADO y los adjuntos CIFRADOS.
 const DB={db:null,
- open(){return new Promise((ok,ko)=>{const r=indexedDB.open("finanzasMemphis",1);r.onupgradeneeded=()=>{r.result.createObjectStore("kv")};r.onsuccess=()=>{this.db=r.result;ok()};r.onerror=()=>ko(r.error)})},
+ open(){return new Promise((ok,ko)=>{const r=indexedDB.open("finanzasMemphis"+SUF_P,1);r.onupgradeneeded=()=>{r.result.createObjectStore("kv")};r.onsuccess=()=>{this.db=r.result;ok()};r.onerror=()=>ko(r.error)})},
  get(k){return new Promise(ok=>{try{const r=this.db.transaction("kv").objectStore("kv").get(k);r.onsuccess=()=>ok(r.result);r.onerror=()=>ok(null)}catch(e){ok(null)}})},
  set(k,v){return new Promise(ok=>{try{const tx=this.db.transaction("kv","readwrite");tx.objectStore("kv").put(v,k);tx.oncomplete=()=>ok(true);tx.onerror=()=>ok(false)}catch(e){ok(false)}})},
  del(k){return new Promise(ok=>{try{const tx=this.db.transaction("kv","readwrite");tx.objectStore("kv").delete(k);tx.oncomplete=()=>ok(true);tx.onerror=()=>ok(false)}catch(e){ok(false)}})},
@@ -140,7 +148,7 @@ function status(t){$("#st").textContent=t}
 let GEN=0;
 function changed(){GEN++;dirty=true;S.ultimaEdicion=new Date().toISOString();clearTimeout(saveTimer);saveTimer=setTimeout(persist,600);status("Guardando…")}
 async function permiso(h,pedir){if(!h)return false;try{const o={mode:"readwrite"};if(await h.queryPermission(o)==="granted")return true;return pedir?(await h.requestPermission(o))==="granted":false}catch(e){return false}}
-async function subdir(ruta,crear=true){let d=dirHandle;for(const p of ruta.split("/").filter(Boolean))d=await d.getDirectoryHandle(p,{create:crear});return d}
+async function subdir(ruta,crear=true){let d=dirHandle;if(PERFIL)ruta="perfiles/"+PERFIL+"/"+ruta;for(const p of ruta.split("/").filter(Boolean))d=await d.getDirectoryHandle(p,{create:crear});return d}
 async function escribir(ruta,datos){const partes=ruta.split("/");const nombre=partes.pop();const d=await subdir(partes.join("/"));const fh=await d.getFileHandle(nombre,{create:true});const w=await fh.createWritable();await w.write(datos);await w.close()}
 async function leer(ruta){const partes=ruta.split("/");const nombre=partes.pop();const d=await subdir(partes.join("/"),false);return (await d.getFileHandle(nombre)).getFile()}
 const RUTA_DATOS="datos/finanzas-memphis.fmx";
@@ -282,12 +290,12 @@ async function dbxTok(){if(DBX.token&&Date.now()<DBX.exp-60000)return DBX.token;
   const j=await r.json();DBX.token=j.access_token;DBX.exp=Date.now()+(j.expires_in||3600)*1000;return DBX.token}
 const hdrArg=o=>JSON.stringify(o).replace(/[\u007f-￿]/g,c=>"\\u"+c.charCodeAt(0).toString(16).padStart(4,"0"));
 async function dbxErr(r){if(r.status===401){DBX.token=null;return new Error("DBX_401")}if(r.status===409){const e=new Error("DBX_409");e.info=await r.json().catch(()=>({}));return e}return new Error("Dropbox "+r.status)}
-async function _dbxMeta(path){const r=await fetch("https://api.dropboxapi.com/2/files/get_metadata",{method:"POST",headers:{Authorization:"Bearer "+await dbxTok(),"Content-Type":"application/json"},body:JSON.stringify({path})});
+async function _dbxMeta(path){path=rutaP(path);const r=await fetch("https://api.dropboxapi.com/2/files/get_metadata",{method:"POST",headers:{Authorization:"Bearer "+await dbxTok(),"Content-Type":"application/json"},body:JSON.stringify({path})});
   if(r.ok)return r.json();const e=await dbxErr(r);if(e.message==="DBX_409"&&e.info&&e.info.error&&e.info.error.path&&e.info.error.path[".tag"]==="not_found")return null;throw e}
-async function _dbxDown(path){const r=await fetch("https://content.dropboxapi.com/2/files/download",{method:"POST",headers:{Authorization:"Bearer "+await dbxTok(),"Dropbox-API-Arg":hdrArg({path})}});
+async function _dbxDown(path){path=rutaP(path);const r=await fetch("https://content.dropboxapi.com/2/files/download",{method:"POST",headers:{Authorization:"Bearer "+await dbxTok(),"Dropbox-API-Arg":hdrArg({path})}});
   if(!r.ok){const e=await dbxErr(r);if(e.message==="DBX_409")return null;throw e}
   let rev=null;try{rev=JSON.parse(r.headers.get("Dropbox-API-Result")||"{}").rev||null}catch(e){}return{bytes:new Uint8Array(await r.arrayBuffer()),rev}}
-async function _dbxUp(path,data,mode){const r=await fetch("https://content.dropboxapi.com/2/files/upload",{method:"POST",headers:{Authorization:"Bearer "+await dbxTok(),"Content-Type":"application/octet-stream","Dropbox-API-Arg":hdrArg({path,mode:mode||"overwrite",mute:true,autorename:false,strict_conflict:true})},body:data});
+async function _dbxUp(path,data,mode){path=rutaP(path);const r=await fetch("https://content.dropboxapi.com/2/files/upload",{method:"POST",headers:{Authorization:"Bearer "+await dbxTok(),"Content-Type":"application/octet-stream","Dropbox-API-Arg":hdrArg({path,mode:mode||"overwrite",mute:true,autorename:false,strict_conflict:true})},body:data});
   if(!r.ok)throw await dbxErr(r);return r.json()}
 async function reint(f){try{return await f()}catch(e){if(e.message==="DBX_401")return await f();throw e}}
 async function dbxMeta(p){return reint(()=>_dbxMeta(p))}
@@ -389,8 +397,8 @@ function nombreBk(tipo,st,etq){const d=new Date(),loc=new Date(d.getTime()-d.get
   return`${f}__${(st.mov||[]).length}m-${(st.venc||[]).length}v-${(st.rec||[]).length}r${etq?"__"+slug(etq).toLowerCase():""}.fmx`}
 function infoBk(tipo,nombre){const m=nombre.match(/^(\d{4}-\d{2}-\d{2})_(\d{2})(\d{2})(\d{2})?__(\d+)m-(\d+)v-(\d+)r(?:__([a-z0-9-]+))?\.fmx$/);if(!m)return null;
   return{tipo,nombre,fecha:m[1]+" "+m[2]+":"+m[3],orden:m[1]+m[2]+m[3]+(m[4]||"00"),mov:+m[5],venc:+m[6],rec:+m[7],etq:(m[8]||"").replace(/-/g," ")}}
-async function dbxListar(path){try{const r=await fetch("https://api.dropboxapi.com/2/files/list_folder",{method:"POST",headers:{Authorization:"Bearer "+await dbxTok(),"Content-Type":"application/json"},body:JSON.stringify({path})});if(!r.ok)return[];const j=await r.json();return(j.entries||[]).filter(e=>e[".tag"]==="file").map(e=>e.name)}catch(e){return[]}}
-async function dbxBorrar(path){try{await fetch("https://api.dropboxapi.com/2/files/delete_v2",{method:"POST",headers:{Authorization:"Bearer "+await dbxTok(),"Content-Type":"application/json"},body:JSON.stringify({path})})}catch(e){}}
+async function dbxListar(path){path=rutaP(path);try{const r=await fetch("https://api.dropboxapi.com/2/files/list_folder",{method:"POST",headers:{Authorization:"Bearer "+await dbxTok(),"Content-Type":"application/json"},body:JSON.stringify({path})});if(!r.ok)return[];const j=await r.json();return(j.entries||[]).filter(e=>e[".tag"]==="file").map(e=>e.name)}catch(e){return[]}}
+async function dbxBorrar(path){path=rutaP(path);try{await fetch("https://api.dropboxapi.com/2/files/delete_v2",{method:"POST",headers:{Authorization:"Bearer "+await dbxTok(),"Content-Type":"application/json"},body:JSON.stringify({path})})}catch(e){}}
 async function bkListar(){const out=new Map();
   for(const k of await DB.keys()){const m=String(k).match(/^bk:(\w+)\/(.+)$/);if(m){const i=infoBk(m[1],m[2]);if(i){i.local=true;out.set(m[1]+"/"+m[2],i)}}}
   if(conDropbox())for(const tipo of Object.keys(BK))for(const n of await dbxListar("/respaldos/"+tipo)){const i=infoBk(tipo,n);if(!i)continue;const k=tipo+"/"+n;if(out.has(k))out.get(k).nube=true;else{i.nube=true;out.set(k,i)}}

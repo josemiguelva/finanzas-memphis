@@ -155,7 +155,7 @@ function editarLugar(f){const nf=f||{id:uid(),nombre:"",tipo:"lugar",alias:[],no
 
 // ---------------------------------------------------------------- apariencia (por dispositivo)
 function apariencia(){const t=localStorage.getItem("memphisTema")||"auto",a=localStorage.getItem("memphisAcento")||"azul";
-  const T=[["auto","🌗 Automático"],["claro","☀️ Claro"],["suave","🌾 Suave"],["oscuro","🌙 Oscuro"]],A=[["azul","#1f4e78"],["verde","#1e6b52"],["violeta","#5b3fa0"],["terracota","#9a4a26"],["grafito","#3b4350"]];
+  const T=[["auto","🌗 Automático"],["claro","☀️ Claro"],["suave","🌾 Suave"],["rosa","🌸 Rosa"],["oscuro","🌙 Oscuro"]],A=[["azul","#1f4e78"],["verde","#1e6b52"],["violeta","#5b3fa0"],["terracota","#9a4a26"],["grafito","#3b4350"],["rosa","#b03a72"]];
   dlg("🎨 Apariencia",`<div class="aparien"><label>Tema</label><div class="opc">${T.map(([k,l])=>`<button class="b ${t===k?"p":""}" data-ap-t="${k}">${l}</button>`).join("")}</div>
     <label>Color de botones</label><div class="opc">${A.map(([k,c])=>`<button class="b ${a===k?"p":""}" data-ap-a="${k}"><span class="swatch" style="background:${c}"></span>${k[0].toUpperCase()+k.slice(1)}</button>`).join("")}</div>
     <p class="small muted">Automático sigue el modo claro u oscuro de tu teléfono o computador. Cada módulo tiene su color (Finanzas azul, Diario ámbar, Salud verde agua, Biblioteca violeta) en la franja superior y en su submenú. Esto se guarda solo en este dispositivo.</p></div>`,[["Listo","p",cerrar]]);
