@@ -5,7 +5,8 @@
 // fotos, audios, fórmulas, incapacidades y enlaces. Nada de esto va al archivo de sincronización sin cifrar.
 // =====================================================================================================
 "use strict";
-let TS={vista:"resumen",per:"",tipo:"",sint:"",anio:"",q:"",perfil:""};
+CONFIG_EXTRA.push("saludFuera");
+let TS={circ:"nucleo",vista:"resumen",per:"",tipo:"",sint:"",anio:"",q:"",perfil:""};
 const STIPOS={episodio:["🤒","Enfermedad / síntomas"],cita:["🩺","Cita médica"],accidente:["🩹","Accidente"],vacuna:["💉","Vacuna"],medicamento:["💊","Medicamento / tratamiento"],examen:["🧪","Examen / laboratorio"],control:["📏","Control / medidas"],nota:["📝","Nota de salud"]};
 const SESTADOS=[["","—"],["pendiente","Pendiente"],["hecho","Hecho / terminó"],["no asistió","No asistió"],["cancelada","Cancelada"]];
 const SINT_DEF=["Fiebre","Febrícula","Temperatura alta","Tos","Flema","Mucosidad nasal","Congestión respiratoria","Dolor de garganta","Disfonía","Gripe","Resfrío","Dolor de cabeza","Mareos","Fatiga","Malestar general","Dolor de cuerpo","Dolor de articulaciones",
@@ -54,6 +55,18 @@ function famSalud(){const m=new Map();const add=n=>{const nm=nomPer(n);if(!m.has
   fam.sort((a,b)=>ord(a)-ord(b)||a.nombre.localeCompare(b.nombre)).forEach(f=>add(f.nombre));
   for(const p of S.perfilesSalud||[])add(p.nombre);const cnt={};for(const r of S.salud||[])for(const p of r.personas)cnt[nomPer(p)]=(cnt[nomPer(p)]||0)+1;
   Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]).forEach(add);return[...m.values()]}
+// núcleo familiar: quién entra en las estadísticas (las demás personas se ven en su perfil y en el historial)
+const fueraS=()=>new Set((S.saludFuera||[]).map(claveF));
+const enNucleo=n=>!fueraS().has(claveF(nomPer(n)));
+const recNucleo=r=>!r.personas.length||r.personas.some(enNucleo);
+const famStats=()=>TS.circ==="todos"?famSalud():famSalud().filter(enNucleo);
+const recVis=r=>TS.circ==="todos"||recNucleo(r);
+function selCirc(){const F=famSalud().filter(n=>!enNucleo(n));return F.length?`<div class="filters"><div class="seg">${[["nucleo","🏠 Núcleo familiar"],["todos","👥 Todos"]].map(([k,l])=>`<button data-scirc="${k}" class="${(TS.circ||"nucleo")===k?"on":""}">${l}</button>`).join("")}</div><span class="small muted">Fuera de las estadísticas: ${F.map(esc).join(", ")} · <a href="#" data-snuc="1">cambiar</a></span></div>`:`<p class="small muted" style="margin:0 0 6px"><a href="#" data-snuc="1">⚙ Elegir quién entra en las estadísticas</a></p>`}
+function dlgNucleo(){const P=famSalud(),F=fueraS();
+  dlg("🏠 Núcleo familiar",`<p class="small">Marca a quienes quieres en el resumen y las estadísticas de Salud. Los demás siguen con su perfil, su historia y sus recordatorios; solo no se suman a los totales ni a las gráficas.</p>
+   <div class="opc">${P.map(n=>`<label class="fchip ${F.has(claveF(n))?"off":"on"}"><input type="checkbox" class="sNuc" value="${esc(n)}" ${F.has(claveF(n))?"":"checked"} hidden>${esc(n)}${relDe(n)?` <span class="small">· ${esc(relDe(n))}</span>`:""}</label>`).join("")}</div>`,
+   [["Cancelar","",cerrar],["Guardar","p",()=>{S.saludFuera=[...document.querySelectorAll(".sNuc")].filter(x=>!x.checked).map(x=>x.value);changed();cerrar();render()}]]);
+  document.querySelectorAll(".sNuc").forEach(x=>x.onchange=()=>{x.parentElement.className="fchip "+(x.checked?"on":"off")})}
 const COLP=["#185FA5","#9C5BB5","#2E8B57","#C0612B","#B8336A","#5F6B7A","#8A6D1F"];
 const colPer=n=>{const L=famSalud(),i=L.findIndex(x=>claveF(x)===claveF(nomPer(n)));return COLP[(i<0?parseInt(hashTxt(n).slice(0,2),16):i)%COLP.length]};
 const chipP=n=>`<a href="#" class="chipP" data-sper="${esc(nomPer(n))}" style="--c:${colPer(n)}">${esc(nomPer(n))}</a>`;
@@ -116,13 +129,13 @@ function vSalud(){if(!S.sintomas)S.sintomas=SINT_DEF.slice();
     <div id="sqP" class="small muted"></div><div class="filters" style="margin:6px 0 0">${Object.entries(STIPOS).map(([k,[i,l]])=>`<button class="b s" data-snuevo="${k}">${i} ${l.split(" /")[0]}</button>`).join("")}</div></div>`;
   h+=TS.vista==="historial"?vHistS():TS.vista==="perfiles"?vPerfilesS():TS.vista==="perfil"?vPerfilS():TS.vista==="sintomas"?vSintomasS():vResumenS();
   $("#view").innerHTML=h;bindSalud();previewQS()}
-function vResumenS(){const P=famSalud(),h0=hoyISO(),L=S.salud||[];
+function vResumenS(){const P=famStats(),h0=hoyISO(),L=(S.salud||[]).filter(recVis);
   if(!L.length&&!(S.perfilesSalud||[]).length)return`<div class="card vacio"><h2>🩺 Salud de la familia</h2><p>Aquí quedan citas, enfermedades con sus síntomas día a día, vacunas, medicamentos con recordatorios, exámenes, fórmulas e incapacidades, de cada persona. Escribe arriba lo que pasa, o importa tu historial (Datos › Importar paquete).</p><button class="b p" id="sPerN">+ Crear perfil</button></div>`;
   const prox=L.filter(r=>r.tipo==="cita"&&r.fecha>=h0&&!["cancelada","no asistió"].includes(r.estado)).sort((a,b)=>(a.fecha+a.hora).localeCompare(b.fecha+b.hora));
   const refz=[];for(const n of P)for(const {r,v} of vacunasDe(n))if(v.refuerzo&&v.refuerzo>=masDias(h0,-30))refz.push({n,r,v});refz.sort((a,b)=>a.v.refuerzo.localeCompare(b.v.refuerzo));
   const act=[];for(const r of L)for(const m of r.meds||[])if(medActiva(m,r))act.push({r,m});
   const cur=L.filter(enCurso);
-  let h=`<div class="pcards">${P.map(n=>{const pf=perfilDe(n),R=L.filter(r=>esDe(r,n)),u12=R.filter(r=>r.fecha>=masDias(h0,-365)),ep=u12.filter(r=>r.tipo==="episodio"),ci=u12.filter(r=>r.tipo==="cita");
+  let h=selCirc()+`<div class="pcards">${P.map(n=>{const pf=perfilDe(n),R=L.filter(r=>esDe(r,n)),u12=R.filter(r=>r.fecha>=masDias(h0,-365)),ep=u12.filter(r=>r.tipo==="episodio"),ci=u12.filter(r=>r.tipo==="cita");
       const cnt={};for(const r of ep)for(const s of r.sintomas)cnt[s]=(cnt[s]||0)+1;const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,3);const md1=medidasDe(n).find(r=>r.medidas.peso||r.medidas.talla),ult=R.slice().sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];
       return`<div class="card pcard" style="--c:${colPer(n)}"><div class="ih click" data-sper="${esc(n)}"><h2 style="margin:0">👤 ${esc(n)}</h2><span class="small muted">${[relDe(n),pf&&pf.nac&&edad(pf.nac)].filter(Boolean).map(esc).join(" · ")}</span></div>
         <div class="small">${ep.length} episodios y ${ci.length} citas en 12 meses${top.length?`<div class="muted">más frecuente: ${top.map(([s,c])=>esc(s)+" ("+c+")").join(", ")}</div>`:""}</div>
@@ -139,15 +152,16 @@ function filtrarS(){const q=normK(TS.q);return(S.salud||[]).filter(r=>(!TS.per||
   .sort((a,b)=>(b.fecha+b.hora).localeCompare(a.fecha+a.hora))}
 function filtrosHtmlS(){const anios=[...new Set((S.salud||[]).map(r=>r.fecha.slice(0,4)))].sort().reverse(),usados=[...new Set((S.salud||[]).flatMap(r=>r.sintomas))].sort((a,b)=>a.localeCompare(b));
   return`<div class="filters"><input id="sB" placeholder="🔎 Buscar: medicamento, médico, síntoma, archivo…" value="${esc(TS.q)}" style="flex:1;min-width:180px">
-    <select id="sFp"><option value="">Todos</option>${famSalud().map(n=>`<option ${TS.per===n?"selected":""}>${esc(n)}</option>`).join("")}</select>
+    <select id="sFp"><option value="">Todos</option>${(()=>{const o=n=>`<option ${TS.per===n?"selected":""}>${esc(n)}</option>`,N=famSalud().filter(enNucleo),O=famSalud().filter(n=>!enNucleo(n));return O.length?`<optgroup label="Núcleo familiar">${N.map(o).join("")}</optgroup><optgroup label="Otras personas">${O.map(o).join("")}</optgroup>`:N.map(o).join("")})()}</select>
     <select id="sFt"><option value="">Todo tipo</option>${Object.entries(STIPOS).map(([k,[i,l]])=>`<option value="${k}" ${TS.tipo===k?"selected":""}>${i} ${esc(l)}</option>`).join("")}</select>
     <select id="sFs"><option value="">Cualquier síntoma</option>${usados.map(s=>`<option ${TS.sint===s?"selected":""}>${esc(s)}</option>`).join("")}</select>
     <select id="sFa"><option value="">Todos los años</option>${anios.map(a=>`<option ${TS.anio===a?"selected":""}>${a}</option>`).join("")}</select></div>`}
 function vHistS(){const L=filtrarS();TS.sel=TS.sel||new Set();let h=filtrosHtmlS()+`<div class="filters" style="margin:6px 0"><span class="small muted">${L.length} registros</span><span class="sp"></span>${TS.elegir?`<button class="b s" id="sSelT">Marcar todos</button><button class="b s" id="sSelN">Ninguno</button><button class="b s p" id="sExpSel">📤 Exportar ${TS.sel.size} elegidos</button><button class="b s" id="sElegir">Terminar</button>`:`<button class="b s" id="sElegir">☑ Elegir registros</button><button class="b s" id="sExpF">📤 Exportar lo filtrado</button>`}</div>`,mes="";
   for(const r of L.slice(0,400)){const m=r.fecha.slice(0,7);if(m!==mes){mes=m;h+=`<div class="dsep">${MESL[+m.slice(5)-1]} ${m.slice(0,4)}</div>`}h+=TS.elegir?`<div class="selw"><input type="checkbox" data-sel="${esc(r.id)}" ${TS.sel.has(r.id)?"checked":""}>${tarjetaS(r,{conFecha:true,corto:true})}</div>`:tarjetaS(r,{conFecha:true,corto:true})}
   return h+(L.length>400?`<p class="small muted">y ${L.length-400} más: usa los filtros.</p>`:"")}
-function vPerfilesS(){const P=famSalud(),fichas=(S.fichas||[]).filter(f=>f.tipo==="persona"&&!P.some(n=>claveF(n)===claveF(f.nombre)));
-  return`<div class="pcards">${P.map(n=>{const pf=perfilDe(n);return`<div class="card pcard click" style="--c:${colPer(n)}" data-sper="${esc(n)}"><h2>👤 ${esc(n)}</h2>${relDe(n)?`<div class="small"><span class="chip">${esc(relDe(n))}</span></div>`:""}<div class="small muted">${pf?[pf.nac&&edad(pf.nac),pf.sangre&&"🩸 "+pf.sangre,pf.eps].filter(Boolean).map(esc).join(" · ")||"Perfil sin datos todavía":"Sin perfil (toca para crearlo)"}</div><div class="small">${(S.salud||[]).filter(r=>esDe(r,n)).length} registros</div></div>`}).join("")}</div>
+function vPerfilesS(){const P0=famSalud(),fichas=(S.fichas||[]).filter(f=>f.tipo==="persona"&&!P0.some(n=>claveF(n)===claveF(f.nombre)));void fichas;
+  const tarj=P=>`<div class="pcards">${P.map(n=>{const pf=perfilDe(n);return`<div class="card pcard click" style="--c:${colPer(n)}" data-sper="${esc(n)}"><h2>👤 ${esc(n)}</h2>${relDe(n)?`<div class="small"><span class="chip">${esc(relDe(n))}</span></div>`:""}<div class="small muted">${pf?[pf.nac&&edad(pf.nac),pf.sangre&&"🩸 "+pf.sangre,pf.eps].filter(Boolean).map(esc).join(" · ")||"Perfil sin datos todavía":"Sin perfil (toca para crearlo)"}</div><div class="small">${(S.salud||[]).filter(r=>esDe(r,n)).length} registros</div><div class="small"><a href="#" data-smov="${esc(n)}">${enNucleo(n)?"Sacar de las estadísticas":"Pasar al núcleo familiar"}</a></div></div>`}).join("")}</div>`,N=P0.filter(enNucleo),O=P0.filter(n=>!enNucleo(n));
+  return`<h2 class="sub">🏠 Núcleo familiar <span class="small muted">(entra en el resumen y las estadísticas)</span></h2>${tarj(N)}${O.length?`<h2 class="sub">👥 Otras personas <span class="small muted">(solo su perfil e historia)</span></h2>${tarj(O)}`:""}
    <div class="filters"><button class="b p" id="sPar">+ Pariente o persona cercana</button></div><p class="small muted">Las personas se definen en el área de 👥 Personas (Diario): ahí van sus datos de contacto y su relación (papá, tía, suegro…). Las marcadas «🩺 en Salud» aparecen aquí.</p>`}
 function vPerfilS(){const n=TS.perfil,pf=perfilDe(n),f=fichaDe(n,"persona"),R=(S.salud||[]).filter(r=>esDe(r,n)).sort((a,b)=>(b.fecha+b.hora).localeCompare(a.fecha+a.hora));
   const V=vacunasDe(n),M=medidasDe(n),meds=[];for(const r of R)for(const m of r.meds||[])meds.push({r,m});const adj=R.flatMap(r=>(r.adjuntos||[]).filter(a=>a.tipo!=="enlace").map(a=>({a,r})));
@@ -163,12 +177,12 @@ function vPerfilS(){const n=TS.perfil,pf=perfilDe(n),f=fichaDe(n,"persona"),R=(S
      ${M.length?`<div class="card"><h2>📏 Medidas</h2><div class="tw"><table><tr><th>Fecha</th><th>Peso</th><th>Talla</th><th>Temp.</th></tr>${M.slice(0,40).map(r=>`<tr class="click" data-s="${esc(r.id)}"><td>${esc(r.fecha)}</td><td>${r.medidas.peso?r.medidas.peso+" kg":""}</td><td>${r.medidas.talla?r.medidas.talla+" cm":""}</td><td>${r.medidas.temp?r.medidas.temp+" °C":""}</td></tr>`).join("")}</table></div></div>`:""}
      ${adj.length?`<div class="card"><h2>📎 Fórmulas, órdenes y fotos</h2><div class="gal">${adj.filter(x=>esImg(x.a)).slice(0,30).map(x=>`<img data-mini="${x.a.sha}" data-ver="${x.a.sha}" alt="">`).join("")}</div>${adj.filter(x=>!esImg(x.a)).map(x=>`<div class="small"><a href="#" data-abrir="${x.a.sha}">${esAud(x.a)?"🎙":/pdf/.test(x.a.mime)?"📄":"📎"} ${esc(x.a.original||x.a.nombre)}</a> <span class="muted">${esc(x.r.fecha)}</span></div>`).join("")}</div>`:""}</div></div>`}
 function barrasS(pares,col){const mx=Math.max(1,...pares.map(p=>p[1]));return pares.map(([k,v])=>`<div class="sbar"><span class="sbl">${esc(k)}</span><span class="sbt"><span style="width:${Math.round(v/mx*100)}%;background:${col||"var(--pri2)"}"></span></span><span class="sbn">${v}</span></div>`).join("")}
-function vSintomasS(){const anio=TS.anio||"",P=famSalud(),E=(S.salud||[]).filter(r=>["episodio","accidente","cita"].includes(r.tipo)&&(!anio||r.fecha.startsWith(anio)));
+function vSintomasS(){const anio=TS.anio||"",P=famStats(),E=(S.salud||[]).filter(recVis).filter(r=>["episodio","accidente","cita"].includes(r.tipo)&&(!anio||r.fecha.startsWith(anio)));
   const anios=[...new Set((S.salud||[]).map(r=>r.fecha.slice(0,4)))].sort().reverse();const uso={};for(const r of S.salud||[])for(const s of r.sintomas)uso[s]=(uso[s]||0)+1;
   const tot={};for(const r of E)for(const s of r.sintomas)tot[s]=(tot[s]||0)+1;const top=Object.keys(tot).sort((a,b)=>tot[b]-tot[a]).slice(0,25);
   const porMes={};for(const r of E.filter(r=>r.tipo==="episodio")){const m=r.fecha.slice(0,7);porMes[m]=porMes[m]||{};for(const n of r.personas.map(nomPer))porMes[m][n]=(porMes[m][n]||0)+1}
   const meses=Object.keys(porMes).sort().slice(-24),mx=Math.max(1,...meses.map(m=>Object.values(porMes[m]).reduce((a,b)=>a+b,0)));
-  return`<div class="filters"><select id="sFa"><option value="">Todos los años</option>${anios.map(a=>`<option ${anio===a?"selected":""}>${a}</option>`).join("")}</select></div>
+  return selCirc()+`<div class="filters"><select id="sFa"><option value="">Todos los años</option>${anios.map(a=>`<option ${anio===a?"selected":""}>${a}</option>`).join("")}</select></div>
    <div class="card"><h2>📊 Síntomas por persona ${anio?"en "+anio:""}</h2><div class="tw"><table><tr><th>Síntoma</th>${P.map(n=>`<th style="color:${colPer(n)}">${esc(n)}</th>`).join("")}<th>Total</th></tr>
     ${top.map(s=>`<tr><td><a href="#" data-ssin="${esc(s)}">${esc(s)}</a></td>${P.map(n=>{const c=E.filter(r=>esDe(r,n)&&r.sintomas.includes(s)).length;return`<td class="r">${c||""}</td>`}).join("")}<td class="r"><b>${tot[s]}</b></td></tr>`).join("")}</table></div></div>
    ${meses.length?`<div class="card"><h2>🤒 Episodios por mes</h2><div class="smes">${meses.map(m=>{const o=porMes[m];return`<div class="smc" title="${m}"><div class="smb">${P.filter(n=>o[n]).map(n=>`<span style="height:${o[n]/mx*100}%;background:${colPer(n)}" title="${esc(n)}: ${o[n]}"></span>`).join("")}</div><div class="small">${MESN[+m.slice(5)-1]}${m.endsWith("-01")?"<br>"+m.slice(2,4):""}</div></div>`}).join("")}</div>
@@ -179,6 +193,8 @@ function vSintomasS(){const anio=TS.anio||"",P=famSalud(),E=(S.salud||[]).filter
 function bindSalud(){const sq=$("#sq");if(sq){sq.oninput=previewQS;sq.onkeydown=ev=>{if(ev.key==="Enter"&&!ev.shiftKey){ev.preventDefault();guardarQS()}};$("#sqG").onclick=guardarQS}
   document.querySelectorAll("[data-snuevo]").forEach(b=>b.onclick=()=>{const p=previewQS();const pre={tipo:b.dataset.snuevo};if(b.dataset.para)pre.personas=[b.dataset.para];else if(p){Object.assign(pre,{titulo:p.x.r.titulo||p.t,fecha:p.f,hora:p.x.r.hora,fechaFin:p.x.r.fechaFin,horaFin:p.x.r.horaFin,lugar:p.x.lugar,personas:p.x.personas,sintomas:p.x.sintomas,medidas:p.x.temp?{temp:p.x.temp}:{}})}editarS(null,pre)});
   document.querySelectorAll("[data-sv]").forEach(b=>b.onclick=()=>{TS.vista=b.dataset.sv;syncTabsS();render()});
+  document.querySelectorAll("[data-scirc]").forEach(b=>b.onclick=()=>{TS.circ=b.dataset.scirc;render()});document.querySelectorAll("[data-snuc]").forEach(a=>a.onclick=ev=>{ev.preventDefault();dlgNucleo()});
+  document.querySelectorAll("[data-smov]").forEach(a=>a.onclick=ev=>{ev.preventDefault();ev.stopPropagation();const n=a.dataset.smov,F=new Set(S.saludFuera||[]);const k=[...F].find(x=>claveF(x)===claveF(n));if(k)F.delete(k);else F.add(n);S.saludFuera=[...F];changed();render()});
   const sel=(id,k)=>{const e=$(id);if(e)e.onchange=()=>{TS[k]=e.value;render()}};sel("#sFp","per");sel("#sFt","tipo");sel("#sFs","sint");sel("#sFa","anio");
   if($("#sB")){const b=$("#sB");b.oninput=()=>{TS.q=b.value;clearTimeout(b._t);b._t=setTimeout(()=>{render();const i=$("#sB");i.focus();i.setSelectionRange(i.value.length,i.value.length)},250)}}
   document.querySelectorAll("[data-ssin]").forEach(a=>a.onclick=ev=>{ev.preventDefault();TS.sint=a.dataset.ssin;TS.vista="historial";syncTabsS();render()});
