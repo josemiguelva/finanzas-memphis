@@ -1,7 +1,7 @@
 // Service worker: solo guarda en caché los archivos de la app (código), nunca datos.
 // Estrategia "red primero": si hay internet, siempre trae la versión más nueva publicada en GitHub;
 // sin internet, abre la última versión guardada.
-const CACHE = "memphis-v2026.11.28-compartido";
+const CACHE = "memphis-v2026.11.28-comun";
 const FILES = ["./", "index.html", "app.js", "diario.js", "personas.js", "salud.js", "compartir.js", "vinculos.js", "biblio.js", "extras.js", "captura.js", "buzon.js", "recordar.js", "calext.js", "mejoras.js", "privadas.js", "cursos.js", "correo.js", "proyectos.js", "inicio.js", "perfiles.js", "biblio2.js", "soltar.js", "importar.js", "buscar.js", "previa.js", "avisos.js", "ocr.js", "respaldo.js", "dispositivos.js", "salud2.js", "pareja.js", "escritura.js", "contexto.js", "ajustes.js", "menu.js", "oauth.html", "oauth.js", "styles.css", "gastos.html", "gastos.js", "gastos.webmanifest", "vendor/xlsx.full.min.js", "excel-worker.js", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k))))); self.clients.claim(); });

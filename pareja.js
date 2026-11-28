@@ -112,7 +112,7 @@ function pvFin(I){const F=I.fin||{},M=mesesAtras(12),mes=PV.mes||M[0],otro=esc(S
      <div class="ajg"><div><b>${fmt(tA)}</b><div class="small muted">pusiste tú</div></div><div><b>${fmt(tB)}</b><div class="small muted">puso ${otro}</div></div><div><b>${dif===0?"A mano":dif>0?`${otro} te debe ${fmt(dif)}`:`Le debes ${fmt(-dif)}`}</b><div class="small muted">si dividen por mitades</div></div></div>
      <div class="tabla-c-wrap"><table class="tabla-c small"><tr><th>Fecha</th><th>Quién</th><th>Detalle</th><th>Categoría</th><th class="n">Valor</th></tr>${[...mios,...det].sort((a,b)=>b.f.localeCompare(a.f)).slice(0,200).map(x=>`<tr><td>${esc(fechaCorta(x.f))}</td><td>${x.yo?"Tú":otro}</td><td>${esc(x.d)}</td><td>${esc(x.cat)}</td><td class="n">${fmt(x.g)}</td></tr>`).join("")}</table></div>`}
   return h}
-function pvFam(I){const L=I.personas||[];if(!L.length)return`<p class="small muted">${esc(S.pareja.otro||"Tu pareja")} no comparte información de personas.</p>`;
+function pvFam(I){const L=I.personas||[];if(!L.length)return comunesP().length?`<p>👨‍👩‍👧 En común: <b>${comunesP().map(c=>esc(c.nombre)).join(", ")}</b>.</p><p class="small muted">Su ficha, su salud y las notas o actividades que los mencionan están en tu app como datos normales (Salud, Diario, Inicio) y los editan los dos.</p>`:`<p class="small muted">${esc(S.pareja.otro||"Tu pareja")} no comparte información de personas.</p>`;
   return L.map(p=>{const d=p.datos||{};return`<details class="pgrp" open><summary>👤 ${esc(p.nombre)}<span class="cnt">${(p.salud||[]).length} registros</span></summary><div style="padding:6px 10px">
    ${[d.rel&&"Relación: "+d.rel,d.cumple&&"Cumpleaños: "+d.cumple,(d.tel||[]).length&&"Tel: "+d.tel.join(", "),...(d.extra||[]).map(x=>x.k+": "+x.v)].filter(Boolean).map(x=>`<div class="small">${esc(x)}</div>`).join("")}
    ${p.perfil?`<div class="small">${Object.entries(p.perfil).filter(([k,v])=>v&&typeof v!=="object"&&k!=="nombre").map(([k,v])=>`<b>${esc(k)}:</b> ${esc(String(v).slice(0,200))}`).join(" · ")}</div>`:""}
@@ -169,4 +169,104 @@ window.addEventListener("load",()=>{
     for(const e of E)if(e.f<=hasta&&(e.ff||e.f)>=desde)out.push({k:"pa",fecha:e.f>=desde?e.f:desde,hora:e.h||"",e});return out.sort((a,b)=>a.fecha.localeCompare(b.fecha)||(a.hora||"").localeCompare(b.hora||""))};
   const ti=window.tarjetaItem;if(typeof ti==="function")window.tarjetaItem=function(x){if(x&&x.k==="pa")return`<div class="it ev click" data-pev="${esc(x.e.id)}">📅 ${x.e.h?`<b>${esc(x.e.h)}</b> `:""}${esc(x.e.t||"Actividad")} <span class="chip par">🤝 ${esc(x.e._par)}</span>${x.e.l?` <span class="small muted">📍 ${esc(x.e.l)}</span>`:""}</div>`;return ti.apply(this,arguments)};
   document.addEventListener("click",ev=>{const a=ev.target.closest&&ev.target.closest("[data-pev]");if(a){ev.preventDefault();verEvPar(a.dataset.pev)}});
+});
+// =====================================================================================================
+// 👨‍👩‍👧 PERSONAS EN COMÚN (las editan los dos): todo lo de esas personas —su ficha, su perfil de salud, sus registros
+// de salud y las notas y actividades del Diario que las mencionan— vive en las dos apps como datos normales (se editan
+// con las pantallas de siempre) y se mantiene igual en ambas a través de /pareja/<id>/comun.json, cifrado con la llave
+// de pareja. Los adjuntos viajan aparte (/pareja/<id>/adj/), también cifrados con esa llave.
+// · Gana la edición más reciente de cada elemento; lo borrado por uno se borra en el otro (queda en su papelera).
+// · Las notas privadas 🔒 y los eventos traídos de Google Calendar nunca entran.
+// · Si terminan el emparejamiento, cada uno se queda con su copia completa.
+// =====================================================================================================
+const KCOM={s:"salud",d:"diario",f:"fichas",p:"perfilesSalud"};
+const comunesP=()=>(S.pareja&&Array.isArray(S.pareja.comunes)?S.pareja.comunes:[]);
+function clavesComunes(){const K=new Set();for(const c of comunesP()){K.add(claveF(c.nombre));for(const a of c.alias||[])K.add(claveF(a));const f=fichaDe(c.nombre,"persona");if(f){K.add(claveF(f.nombre));for(const a of f.alias||[])K.add(claveF(a))}}return K}
+function esComunNombre(n,K){K=K||clavesComunes();const f=fichaDe(n,"persona");return[n,...(f?[f.nombre,...(f.alias||[])]:[])].some(x=>K.has(claveF(x)))}
+function cuentaComo(k,x,K){if(!x)return false;if(k==="s")return(x.personas||[]).some(n=>esComunNombre(n,K));if(k==="f")return x.tipo==="persona"&&esComunNombre(x.nombre,K);if(k==="p")return esComunNombre(x.nombre,K);
+  if(k==="d")return!x.priv&&!(x.gcal&&x.gcal.src)&&!x.gcal&&typeof menciones==="function"&&menciones((x.titulo||"")+" "+(x.texto||"")).some(m=>m.tipo==="persona"&&esComunNombre(m.nombre,K));return false}
+const marcaT=x=>String(x.editado||x.creado||"");
+const sinVirt=o=>{const c=structuredClone(o);delete c._par;return c};
+function esElementoComun(k,id){const P=S.pareja;return!!(P&&P.com&&P.com.vistos&&(k+":"+id) in P.com.vistos)}
+async function comCifrar(o){const k=await llavePar(),iv=crypto.getRandomValues(new Uint8Array(12));return JSON.stringify({v:1,iv:u8b64(iv),ct:u8b64(new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv,additionalData:enc.encode(S.pareja.pid+"|comun")},k,enc.encode(JSON.stringify(o)))))})}
+async function comDescifrar(t){const o=JSON.parse(t),k=await llavePar();return JSON.parse(dec.decode(await crypto.subtle.decrypt({name:"AES-GCM",iv:b64u8(o.iv),additionalData:enc.encode(S.pareja.pid+"|comun")},k,b64u8(o.ct))))}
+function fusionarPersonas(R){const P=S.pareja,mapa=new Map();const quit=new Map();for(const q of [...(R.quitadas||[]),...(P.quitadas||[])])if(!quit.has(q.c)||quit.get(q.c)<q.t)quit.set(q.c,q.t);
+  for(const c of [...(R.personas||[]),...comunesP()]){const k=claveF(c.nombre),prev=mapa.get(k);if(!prev||String(c.desde||"")>String(prev.desde||""))mapa.set(k,{...c,alias:[...new Set([...(prev&&prev.alias||[]),...(c.alias||[])])]})}
+  P.comunes=[...mapa.values()].filter(c=>!(quit.has(claveF(c.nombre))&&quit.get(claveF(c.nombre))>=String(c.desde||"")));P.quitadas=[...quit.entries()].map(([c,t])=>({c,t})).slice(-100)}
+async function syncComun(){const P=S.pareja;if(!P||P.estado!=="activo")return false;P.com=P.com||{rev:"",vistos:{}};const ruta=`/pareja/${P.pid}/comun.json`;let cambioLocal=false;
+  for(let intento=0;intento<3;intento++){let R={personas:[],quitadas:[],items:{s:[],d:[],f:[],p:[]},borr:[],quien:{}},rev=null;
+    const meta=await dbxMeta(ruta);if(meta){const d=await dbxDown(ruta);if(d){R=await comDescifrar(dec.decode(d.bytes));rev=d.rev||meta.rev}}
+    R.items=R.items||{};for(const k in KCOM)R.items[k]=R.items[k]||[];R.borr=R.borr||[];R.quien=R.quien||{};
+    if(!comunesP().length&&!(R.personas||[]).length){P.com.rev=rev||"";return false}
+    fusionarPersonas(R);const K=clavesComunes(),ahora=new Date().toISOString(),borr=new Map(R.borr.map(b=>[b.k+":"+b.id,b.t]));
+    // asegurar fichas y núcleo familiar para cada persona en común
+    for(const c of P.comunes){if(!fichaDe(c.nombre,"persona")&&typeof asegurarFichas==="function"){asegurarFichas("@["+c.nombre+"]");cambioLocal=true}
+      if(Array.isArray(S.saludFuera)&&S.saludFuera.some(x=>clavesComunes().has(claveF(x)))){S.saludFuera=S.saludFuera.filter(x=>!esComunNombre(x,K));cambioLocal=true}}
+    for(const k in KCOM){const L=S[KCOM[k]]=S[KCOM[k]]||[];
+      // 1) lo que el otro borró
+      for(const [key,t] of borr){if(!key.startsWith(k+":"))continue;const id=key.slice(k.length+1),i=L.findIndex(x=>x.id===id);if(i>=0&&marcaT(L[i])<=t){const o=L[i];if(typeof aPapelera==="function"&&k!=="p")try{aPapelera(KCOM[k],o)}catch(e){}L.splice(i,1);(S.eliminados=S.eliminados||[]).push({id,fecha:ahora});cambioLocal=true}delete P.com.vistos[key]}
+      // 2) lo nuevo o más reciente del otro
+      for(const r of R.items[k]){let i=L.findIndex(x=>x.id===r.id);if(borr.has(k+":"+r.id))continue;
+        if(i<0&&(k==="f"||k==="p")){const j=L.findIndex(x=>x.id!==r.id&&!x._par&&(k==="p"||x.tipo==="persona")&&(claveF(x.nombre)===claveF(r.nombre)||(x.alias||[]).some(a=>claveF(a)===claveF(r.nombre))));
+          if(j>=0){const x=L[j],[gana,pierde]=r.id<x.id?[sinVirt(r),x]:[x,r];
+            if(k==="f"){gana.alias=[...new Set([...(gana.alias||[]),...(pierde.alias||[]),pierde.nombre].filter(n=>claveF(n)!==claveF(gana.nombre)))];const dg=gana.datos||{},dp=pierde.datos||{};for(const [kk,v] of Object.entries(dp))if(dg[kk]==null||dg[kk]===""||Array.isArray(dg[kk])&&!dg[kk].length)dg[kk]=v;gana.datos=dg;if(pierde.nota&&!String(gana.nota||"").includes(pierde.nota))gana.nota=[gana.nota,pierde.nota].filter(Boolean).join("\n\n")}
+            else for(const [kk,v] of Object.entries(pierde))if(kk!=="id"&&(gana[kk]==null||gana[kk]===""))gana[kk]=v;
+            gana.editado=ahora;L[j]=gana;R.borr.push({k,id:pierde.id,t:ahora});borr.set(k+":"+pierde.id,ahora);delete P.com.vistos[k+":"+pierde.id];P.com.vistos[k+":"+gana.id]=marcaT(gana);cambioLocal=true;continue}}
+        if(i<0&&(k+":"+r.id) in P.com.vistos&&marcaT(r)<=P.com.vistos[k+":"+r.id])continue; // lo borré yo: no lo revivo
+        if(i<0){const n=sinVirt(r);for(const a of n.adjuntos||[])a.enCarpeta=false;L.push(n);cambioLocal=true;P.com.vistos[k+":"+r.id]=marcaT(r)}
+        else if(marcaT(r)>marcaT(L[i])){const n=sinVirt(r);for(const a of n.adjuntos||[]){const v=(L[i].adjuntos||[]).find(x=>x.sha===a.sha);a.enCarpeta=v?!!v.enCarpeta:false}L[i]=n;cambioLocal=true;P.com.vistos[k+":"+r.id]=marcaT(r)}}
+      // 3) lo que yo borré
+      for(const key of Object.keys(P.com.vistos)){if(!key.startsWith(k+":"))continue;const id=key.slice(k.length+1);if(!L.some(x=>x.id===id)&&!borr.has(key)){R.borr.push({k,id,t:ahora});borr.set(key,ahora);delete P.com.vistos[key]}}}
+    // 4) duplicados exactos en salud (lo mismo anotado por los dos antes de compartir)
+    const SL=S.salud||[],vistosD=new Map();for(const r of SL.filter(r=>cuentaComo("s",r,K))){const firma=[r.fecha,r.hora||"",r.tipo,normK(r.titulo||""),[...(r.personas||[])].map(claveF).sort().join(",")].join("|");const o=vistosD.get(firma);
+      if(o&&o.id!==r.id){const [queda,sale]=((r.texto||"").length+(r.adjuntos||[]).length*50)>((o.texto||"").length+(o.adjuntos||[]).length*50)?[r,o]:[o,r];
+        for(const a of sale.adjuntos||[])if(!(queda.adjuntos||[]).some(x=>x.sha===a.sha))(queda.adjuntos=queda.adjuntos||[]).push(a);if(sale.texto&&!String(queda.texto||"").includes(sale.texto))queda.texto=[queda.texto,sale.texto].filter(Boolean).join("\n\n");queda.editado=ahora;
+        S.salud=S.salud.filter(x=>x!==sale);R.borr.push({k:"s",id:sale.id,t:ahora});(S.eliminados=S.eliminados||[]).push({id:sale.id,fecha:ahora});vistosD.set(firma,queda);cambioLocal=true}else vistosD.set(firma,r)}
+    // 5) armar lo que sube: todo lo que cuenta como común (de los dos), con quién lo editó
+    const out={personas:P.comunes,quitadas:P.quitadas,items:{},borr:R.borr.filter(b=>b.t>new Date(Date.now()-180*864e5).toISOString()).slice(-3000),quien:R.quien};
+    for(const k in KCOM){out.items[k]=[];for(const x of S[KCOM[k]]||[]){if(x._par||!cuentaComo(k,x,K)&&!((k+":"+x.id) in P.com.vistos))continue;const key=k+":"+x.id,rem=R.items[k].find(y=>y.id===x.id);
+      if(!rem||marcaT(x)>marcaT(rem))out.quien[key]=P.miNombre||miNombreP();out.items[k].push(sinVirt(x));P.com.vistos[key]=marcaT(x)}}
+    const antes=JSON.stringify({items:R.items,borr:R.borr.length,personas:(R.personas||[]).map(c=>c.nombre).sort()}),despues=JSON.stringify({items:out.items,borr:out.borr.length,personas:out.personas.map(c=>c.nombre).sort()});
+    P.quien=out.quien;
+    if(antes===despues&&meta){P.com.rev=rev;break}
+    try{const r=await dbxUp(ruta,await comCifrar(out),rev?{".tag":"update",update:rev}:{".tag":"add"});P.com.rev=r.rev;break}catch(e){if(e.message==="DBX_409"&&intento<2)continue;throw e}}
+  await subirAdjComun();if(cambioLocal){changed();if(!document.querySelector("dialog[open]"))render()}return cambioLocal}
+// adjuntos: copia cifrada con la llave de pareja
+async function subirAdjComun(){const P=S.pareja;if(!P||!P.com)return;P.com.adj=P.com.adj||{};let n=0;
+  for(const [k,col] of Object.entries(KCOM)){if(k==="f"||k==="p")continue;for(const x of S[col]||[]){if(!((k+":"+x.id) in P.com.vistos))continue;for(const a of x.adjuntos||[]){if(!a.sha||a.tipo==="enlace"||P.com.adj[a.sha]||n>=15)continue;
+    try{const p=await bytesAdj(a,{silencio:true}),kp=await llavePar(),iv=crypto.getRandomValues(new Uint8Array(12)),ct=new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv,additionalData:enc.encode("padj|"+a.sha)},kp,p)),buf=new Uint8Array(12+ct.length);buf.set(iv);buf.set(ct,12);
+      await dbxUp(`/pareja/${P.pid}/adj/${a.sha}.fmp`,buf,{".tag":"overwrite"});P.com.adj[a.sha]=1;n++}catch(e){}}}}if(n)changed()}
+async function bajarAdjComun(a){const P=S.pareja;if(!P||P.estado!=="activo"||!a||!a.sha)return null;const d=await dbxDown(`/pareja/${P.pid}/adj/${a.sha}.fmp`);if(!d||!d.bytes)return null;
+  const b=d.bytes,p=new Uint8Array(await crypto.subtle.decrypt({name:"AES-GCM",iv:b.subarray(0,12),additionalData:enc.encode("padj|"+a.sha)},await llavePar(),b.subarray(12)));if(await sha256(p)!==a.sha)return null;
+  const mio=await cifrarAdj(p,a.sha);await DB.set("adj:"+a.sha,mio);if(a.ruta&&typeof colaPoner==="function")colaPoner(a.sha,a.ruta);return p}
+window.addEventListener("load",()=>{
+  const ba=window.bytesAdj;if(typeof ba==="function")window.bytesAdj=async function(a,op){try{return await ba.call(this,a,{...(op||{}),silencio:true})}catch(e){try{const p=await bajarAdjComun(a);if(p)return p}catch(x){}if(op&&op.silencio)throw e;return ba.apply(this,arguments)}};
+  // la sincronización de pareja también mantiene lo común
+  const sp=window.syncPar;void sp;
+});
+const _syncParBase=syncPar;
+syncPar=async function(forzar){await _syncParBase(forzar);const P=S&&S.pareja;if(!P||P.estado!=="activo"||PAR.ocupadoC)return;if(!forzar&&Date.now()-(PAR.ultC||0)<90e3)return;PAR.ocupadoC=true;PAR.ultC=Date.now();try{await syncComun()}catch(e){P.error=String(e.message||e).slice(0,200)}finally{PAR.ocupadoC=false}};
+// convertir lo que antes era «compartir persona (solo lectura)» en «persona en común»
+MIGRAR_EXTRA.push(st=>{const P=st.pareja;if(P&&P.comp&&Array.isArray(P.comp.personas)&&P.comp.personas.length){P.comunes=[...(P.comunes||[]),...P.comp.personas.filter(n=>!(P.comunes||[]).some(c=>claveF(c.nombre)===claveF(n))).map(n=>({nombre:n,alias:[],desde:new Date().toISOString(),por:P.miNombre||""}))];P.comp.personas=[]}});
+function ponerComun(nombre,si){const P=S.pareja;if(!P)return;P.comunes=P.comunes||[];P.quitadas=P.quitadas||[];const k=claveF(nombre),ah=new Date().toISOString();
+  if(si){if(!P.comunes.some(c=>claveF(c.nombre)===k)){const f=fichaDe(nombre,"persona");P.comunes.push({nombre:f?f.nombre:nombre,alias:f?f.alias||[]:[],desde:ah,por:P.miNombre||miNombreP()})}P.quitadas=P.quitadas.filter(q=>q.c!==k);
+    if(Array.isArray(S.saludFuera))S.saludFuera=S.saludFuera.filter(x=>claveF(x)!==k&&!(fichaDe(nombre,"persona")||{alias:[]}).alias.some(a=>claveF(a)===claveF(x)))}
+  else{P.comunes=P.comunes.filter(c=>claveF(c.nombre)!==k);P.quitadas.push({c:k,t:ah});for(const key of Object.keys((P.com||{}).vistos||{}))void key}
+  changed();PAR.ultC=0;syncPar(true)}
+window.addEventListener("load",()=>{
+  // Ajustes: la lista de personas ahora es «en común»
+  const tp=window.tarjetaPareja;if(typeof tp==="function")window.tarjetaPareja=function(){let h=tp.apply(this,arguments);const P=S.pareja;if(!P||P.estado!=="activo")return h;
+    const personas=[...new Set([...(S.fichas||[]).filter(f=>f.tipo==="persona").map(f=>f.nombre),...(S.perfilesSalud||[]).map(p=>p.nombre)])].sort((a,b)=>a.localeCompare(b,"es")),K=clavesComunes();
+    const bloque=`<label>👨‍👩‍👧 Personas en común <span class="small muted">(las editan los dos: su ficha, su salud con adjuntos, y las notas y actividades que las mencionan con @)</span></label><div class="opc">${personas.map(n=>{const on=esComunNombre(n,K);return`<label class="fchip ${on?"on":"off"}"><input type="checkbox" class="paCom" value="${esc(n)}" ${on?"checked":""} hidden>${esc(n)}</label>`}).join("")||'<span class="small muted">Crea primero las fichas (p. ej. tus hijos).</span>'}</div>
+     ${comunesP().length?`<p class="small muted">En común: ${comunesP().map(c=>esc(c.nombre)+(c.por?` <span class="muted">(por ${esc(c.por)})</span>`:"")).join(", ")}. Quedan en el 🏠 núcleo familiar de los dos.</p>`:""}`;
+    return h.replace(/<label>👤 Personas \(su ficha, perfil y registros de salud\)<\/label><div class="opc">[\s\S]*?<\/div>/,bloque)};
+  const bp=window.bindPareja;if(typeof bp==="function")window.bindPareja=function(){const r=bp.apply(this,arguments);document.querySelectorAll(".paCom").forEach(x=>x.onchange=()=>{
+    if(!x.checked&&!confirm(`¿Dejar de tener a ${x.value} en común? Lo que ya tienen se queda en las dos apps, pero los cambios dejarán de llegarle al otro.`)){x.checked=true;return}x.parentElement.className="fchip "+(x.checked?"on":"off");ponerComun(x.value,x.checked)});return r};
+  // marcas visibles
+  const ts=window.tarjetaS;if(typeof ts==="function")window.tarjetaS=function(r){const h=ts.apply(this,arguments);return r&&!r._par&&esElementoComun("s",r.id)?h.replace(/^(\s*<div[^>]*>)/,`$1<span class="chip par" title="Lo editan los dos">🤝 común</span> `):h};
+  const vs=window.verS;if(typeof vs==="function")window.verS=function(id){const r=vs.apply(this,arguments);if(esElementoComun("s",id)){const q=(S.pareja.quien||{})["s:"+id];const b=$("#dlgB");if(b)b.insertAdjacentHTML("afterbegin",`<p class="small"><span class="chip par">🤝 en común</span>${q?` · última edición: ${esc(q)}`:""}</p>`)}return r};
+  const vd=window.verD;if(typeof vd==="function")window.verD=function(id){const r=vd.apply(this,arguments);if(esElementoComun("d",id)){const q=(S.pareja.quien||{})["d:"+id];const b=$("#dlgB");if(b&&!b.querySelector(".comD"))b.insertAdjacentHTML("afterbegin",`<p class="small comD"><span class="chip par">🤝 en común</span>${q?` · última edición: ${esc(q)}`:""}</p>`)}return r};
+  // menú contextual de una persona: en común
+  const af=window.accionesF;if(typeof af==="function")window.accionesF=function(f){const A=af.apply(this,arguments).filter(a=>!(Array.isArray(a)&&a[0]==="🤝"));if(S.pareja&&S.pareja.estado==="activo"&&f.tipo==="persona"){const on=esComunNombre(f.nombre);
+    A.push(["🤝",on?"Dejar de tener en común":"Poner en común con "+(S.pareja.otro||"mi pareja"),()=>{if(on&&!confirm("¿Dejar de tener a "+f.nombre+" en común?"))return;ponerComun(f.nombre,!on);aviso(on?"Ya no está en común":"🤝 "+f.nombre+" quedó en común")}])}return A};
 });

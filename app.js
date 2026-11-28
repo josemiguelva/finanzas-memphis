@@ -100,7 +100,7 @@ const isTC=c=>/VISA|MASTER|TC|TARJETA/i.test(c||"");
 //   clave = PBKDF2-SHA256(frase, salt, 600.000 iteraciones) → AES-256-GCM
 //   dentro va todo el estado, incluida la "llave de datos" (dek) con la que se cifran los adjuntos.
 // Adjunto (.fma): "FMA1" + iv(12) + AES-256-GCM(dek, contenido)  (AAD = "fma|"+sha)
-const APP_VERSION="2026.11.28-compartido";
+const APP_VERSION="2026.11.28-comun";
 const APP_ID="finanzas-memphis",FORMATO=3,ITER=600000,AAD_DATOS=new TextEncoder().encode("finanzas-memphis|datos");
 const CR={kek:null,salt:null,dek:null,deks:new Map()};
 const enc=new TextEncoder(),dec=new TextDecoder();

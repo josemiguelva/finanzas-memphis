@@ -208,6 +208,7 @@ Portada al abrir (desactivable): saludo, **caja que entiende lo que escribes** (
 - **🔒 Íntimo**: registro personal cifrado con tu PIN (fecha, protección, valoración, etiquetas propias, comentarios). Nunca se comparte ni aparece en búsquedas.
 - **🍽 Comidas**: escribe lo que comiste («2 huevos pericos con arepa y café con leche») y calcula calorías y proteína aproximadas con una tabla de alimentos colombianos ampliable; agua, metas y semana.
 - **🌿 Bienestar y ✅ chequeos preventivos**: ánimo, energía, estrés, sueño, ejercicio; chequeos con su frecuencia y aviso una semana antes.
+- **👨‍👩‍👧 Personas en común** (p. ej. los hijos): las editan los dos; todo lo suyo (ficha, salud con adjuntos, notas y actividades que los mencionan) queda igual en ambas apps.
 - **🤝 Compartir con mi pareja** (Ajustes): se emparejan con un código; cada uno elige qué comparte (salud de los hijos u otro familiar, finanzas solo en totales o por categoría, cuentas comunes con detalle, agenda #familia) y puede quitarlo cuando quiera. Vista «Nuestras finanzas» con quién puso cuánto en lo común.
 - El Worker v4 guarda una lista de avisos por persona (cada una con su bot y su chat de Telegram).
 
