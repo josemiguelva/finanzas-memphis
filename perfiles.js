@@ -23,8 +23,8 @@ function dialogoPerfiles(){const L=listaPerfiles();let d=$("#pfDlg");if(!d){d=do
     L.push({id,nombre:n.slice(0,30)});LS0.set("memphisPerfiles",JSON.stringify(L.filter(p=>p.id||p.nombre!=="Principal"||true)));if(S&&typeof bloquear==="function")try{await bloquear()}catch(e){}cambiarAPerfil(id)}}
 // barra del perfil en las pantallas de bienvenida y de clave
 function barraPerfil(){const c=document.querySelector("#view .lock.card");if(!c||c.querySelector(".pfbar"))return;const L=listaPerfiles();
-  c.insertAdjacentHTML("afterbegin",`<div class="pfbar small">👤 <b>${esc(nombrePerfil(PERFIL))}</b>${L.length>1||PERFIL?` · <a href="#" id="pfCam">cambiar de perfil</a>`:` · <a href="#" id="pfCam">otra persona</a>`}</div>`);
-  $("#pfCam").onclick=ev=>{ev.preventDefault();dialogoPerfiles()};const h=c.querySelector("h2");if(h)h.textContent=h.textContent.replace(/Finanzas Memphis|Memphis/,nombreApp())}
+  c.insertAdjacentHTML("afterbegin",`<div class="pfbar small">👤 <b>${esc(nombrePerfil(PERFIL))}</b>${L.length>1||PERFIL?` · <a href="#" id="pfCam">cambiar de perfil</a>`:` · <a href="#" id="pfCam">otra persona</a>`} · <a href="#" id="pfIco">🎨 nombre e ícono</a></div>`);
+  $("#pfCam").onclick=ev=>{ev.preventDefault();dialogoPerfiles()};$("#pfIco").onclick=ev=>{ev.preventDefault();dialogoMarca()};const h=c.querySelector("h2");if(h)h.textContent=h.textContent.replace(/Finanzas Memphis|Memphis/,nombreApp())}
 new MutationObserver(()=>{if(document.body.classList.contains("locked"))barraPerfil()}).observe(document.documentElement,{childList:true,subtree:true});
 // lo compartido al teléfono (Android) cae en la base del perfil principal: lo traemos
 window.addEventListener("load",async()=>{if(!PERFIL)return;try{const db=await new Promise((ok,ko)=>{const r=indexedDB.open("finanzasMemphis",1);r.onupgradeneeded=()=>r.result.createObjectStore("kv");r.onsuccess=()=>ok(r.result);r.onerror=()=>ko(r.error)});
@@ -42,6 +42,14 @@ function aplicarMarca(){const m=marcaApp(),pf=PERFIL?" · "+nombrePerfil(PERFIL)
   const i=NOMBRES_APP.indexOf(m.nombre),mf=(m.icono==="clasico"&&i<=0)?"manifest.webmanifest":`icons/v/m-${m.icono}-${Math.max(0,i)}.webmanifest`;const ml=document.querySelector('link[rel="manifest"]');if(ml&&ml.getAttribute("href")!==mf)ml.setAttribute("href",mf);
   LS0.set("memphisMarca",JSON.stringify(m));void pf}
 aplicarMarca();
+// elegir nombre e ícono ANTES de instalar (en iPhone el ícono se toma al «Agregar a inicio»)
+function dialogoMarca(){const m=marcaApp();let d=$("#mkDlg");if(!d){d=document.createElement("dialog");d.id="mkDlg";document.body.appendChild(d)}
+  d.innerHTML=`<h2 style="margin-top:0">🎨 Nombre e ícono</h2><p class="small">Elígelos antes de instalar la app en la pantalla de inicio: el celular los toma en ese momento.</p>
+   <label>Nombre<input id="mkN" list="ajNomL2" value="${esc(m.nombre)}" maxlength="30"></label><datalist id="ajNomL2">${NOMBRES_APP.map(n=>`<option value="${esc(n)}">`).join("")}</datalist>
+   <div class="icosel" style="margin-top:8px">${ICONOS_APP.map(([k,l])=>`<button type="button" class="ico ${m.icono===k?"on":""}" data-mki="${k}" title="${esc(l)}"><img src="${k==="clasico"?"icons/icon.svg":"icons/v/"+k+".svg"}" alt="${esc(l)}"></button>`).join("")}</div>
+   <div class="filters" style="justify-content:flex-end;margin-top:10px"><button class="b p" id="mkOK">Listo</button></div>`;
+  d.showModal();let ico=m.icono;d.querySelectorAll("[data-mki]").forEach(b=>b.onclick=()=>{ico=b.dataset.mki;d.querySelectorAll("[data-mki]").forEach(x=>x.classList.toggle("on",x===b))});
+  $("#mkOK").onclick=()=>{const n=$("#mkN").value.trim().slice(0,30)||"Memphis";LS0.set("memphisMarca",JSON.stringify({nombre:n,icono:ico}));if(S){S.marca={nombre:n,icono:ico};changed()}aplicarMarca();d.close();const h=document.querySelector("#view .lock.card h2");if(h)h.textContent=h.textContent.split(m.nombre).join(n)}}
 // ---------------------------------------------------------------- módulos visibles (además del modo Trabajo/Personal)
 const MODS_OPC=[["fin","💰 Finanzas"],["dia","📓 Diario"],["sal","🩺 Salud"],["bib","📚 Biblioteca"],["proy","🎯 Proyectos"],["cur","🎓 Cursos"]];
 CONFIG_EXTRA.push("modsOcultos","marca");
