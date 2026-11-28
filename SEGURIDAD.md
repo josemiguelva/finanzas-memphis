@@ -180,3 +180,4 @@ Revisión independiente + 12 pruebas con dos dispositivos simulados (celular y c
 - Ciclo, comidas, bienestar y chequeos van dentro de tus datos cifrados; no van al archivo de sincronización sin cifrar ni a la búsqueda general.
 - El registro íntimo tiene una capa extra: cada registro (incluida su fecha) se cifra con la llave de las notas privadas (PIN) y AAD propio; las etiquetas que crees también quedan cifradas. Se cierra solo al salir de esa pestaña.
 - Los avisos por Telegram del ciclo y de la pastilla usan textos discretos si activas el modo discreto.
+- Vista previa de redes (Worker 4.1): para X el Worker consulta api.fxtwitter.com (servicio público de terceros) y, si falla, el oEmbed oficial de X; TikTok y YouTube por su oEmbed oficial; Instagram, Facebook y Threads se leen como lo hacen los lectores de enlaces de las redes sociales. Solo viaja el enlace público, nunca tus datos.

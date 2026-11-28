@@ -1,6 +1,6 @@
 // =====================================================================================================
 // Intermediario de Memphis para Cloudflare Workers (gratis). Pegar tal cual en el editor del Worker.
-// Versión 4 (una lista de avisos por persona: varios perfiles, cada uno con su chat de Telegram). Solo trabaja para tu Memphis y exige la cabecera X-Memphis-Clave = variable secreta MEMPHIS_CLAVE.
+// Versión 4.1 (vista previa de X, Instagram, Facebook, Threads y TikTok; una lista de avisos por persona: varios perfiles, cada uno con su chat de Telegram). Solo trabaja para tu Memphis y exige la cabecera X-Memphis-Clave = variable secreta MEMPHIS_CLAVE.
 //   GET  /ics?u=<dirección secreta iCal>   → trae tu calendario (Google, Outlook o iCloud)
 //   GET  /tg/<ruta del archivo>            → trae un adjunto de tu bot de Telegram
 //   GET  /meta?u=<enlace>                  → título, descripción e imagen de una página (vista previa)
@@ -22,10 +22,11 @@ function hostPrivado(h) { h = h.toLowerCase(); return h === "localhost" || h.end
 function urlPublica(v) { let d; try { d = new URL(v || "") } catch (e) { return null } if (!/^https?:$/.test(d.protocol) || hostPrivado(d.hostname)) return null; return d }
 const ent = s => String(s || "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'").replace(/&#(\d+);/g, (m, n) => String.fromCodePoint(+n)).replace(/&#x([0-9a-f]+);/gi, (m, n) => String.fromCodePoint(parseInt(n, 16))).replace(/\s+/g, " ").trim();
 async function leerCabeza(r, max) { const rd = r.body.getReader(), dec = new TextDecoder(); let t = ""; while (t.length < max) { const { done, value } = await rd.read(); if (done) break; t += dec.decode(value, { stream: true }); if (/<\/head>/i.test(t)) break } try { rd.cancel() } catch (e) { } return t }
-async function meta(d) {
+const UA_FB = "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)", UA_TW = "Twitterbot/1.0";
+const pocoUtil = o => !o || o.error || !o.titulo || /^(instagram|facebook|x|threads|tiktok|log ?in|iniciar sesi[oó]n|inicia sesi[oó]n|login|sign up)\b/i.test(o.titulo.trim()) && !o.desc;
+async function pagina(d, ua) {
   const h = d.hostname.replace(/^www\.|^m\./, "");
-  if (/(^|\.)youtube\.com$|(^|\.)youtu\.be$/.test(h)) { try { const r = await fetch("https://www.youtube.com/oembed?format=json&url=" + encodeURIComponent(d.href), { headers: { "User-Agent": UA } }); if (r.ok) { const j = await r.json(); return { url: d.href, titulo: j.title || "", desc: j.author_name ? "Canal: " + j.author_name : "", imagen: j.thumbnail_url || "", sitio: "YouTube", autor: j.author_name || "" } } } catch (e) { } }
-  const r = await fetch(d.href, { headers: { "User-Agent": UA, "Accept": "text/html,application/xhtml+xml", "Accept-Language": "es,en;q=0.8" }, redirect: "follow" });
+  const r = await fetch(d.href, { headers: { "User-Agent": ua, "Accept": "text/html,application/xhtml+xml", "Accept-Language": "es,en;q=0.8" }, redirect: "follow" });
   if (!r.ok) return { url: d.href, error: "La página respondió " + r.status };
   if (!/html/i.test(r.headers.get("Content-Type") || "")) return { url: r.url, titulo: "", desc: "", imagen: "", sitio: h, tipo: r.headers.get("Content-Type") || "" };
   const t = await leerCabeza(r, 700000), M = {};
@@ -34,6 +35,30 @@ async function meta(d) {
   let img = M["og:image"] || M["og:image:url"] || M["twitter:image"] || M["twitter:image:src"] || "";
   try { if (img) img = new URL(img, r.url || d.href).href } catch (e) { img = "" }
   return { url: r.url || d.href, titulo: M["og:title"] || M["twitter:title"] || tt, desc: (M["og:description"] || M["twitter:description"] || M["description"] || "").slice(0, 800), imagen: img, sitio: M["og:site_name"] || h, autor: M["author"] || M["article:author"] || "", fecha: M["article:published_time"] || "" };
+}
+async function jsonDe(u) { const r = await fetch(u, { headers: { "User-Agent": UA, "Accept": "application/json" } }); if (!r.ok) throw new Error("" + r.status); return r.json() }
+const sinEtiquetas = h => ent(String(h || "").replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, " "));
+async function meta(d) {
+  const h = d.hostname.replace(/^www\.|^m\.|^mobile\./, "");
+  if (/(^|\.)youtube\.com$|(^|\.)youtu\.be$/.test(h)) { try { const j = await jsonDe("https://www.youtube.com/oembed?format=json&url=" + encodeURIComponent(d.href)); return { url: d.href, titulo: j.title || "", desc: j.author_name ? "Canal: " + j.author_name : "", imagen: j.thumbnail_url || "", sitio: "YouTube", autor: j.author_name || "" } } catch (e) { } }
+  // X / Twitter: el texto del trino, su autor y su imagen
+  if (/^(x|twitter|fxtwitter|vxtwitter|fixupx)\.com$/.test(h)) {
+    const id = (d.pathname.match(/\/status(?:es)?\/(\d{5,25})/) || [])[1];
+    if (id) { try { const j = await jsonDe("https://api.fxtwitter.com/status/" + id), tw = j.tweet; if (tw && tw.text != null) { const a = tw.author || {}, md = tw.media || {}; return { url: d.href, titulo: (a.name ? a.name + (a.screen_name ? " (@" + a.screen_name + ")" : "") : "Publicación en X"), desc: String(tw.text || "").slice(0, 800), imagen: (md.photos && md.photos[0] && md.photos[0].url) || (md.videos && md.videos[0] && md.videos[0].thumbnail_url) || (md.mosaic && md.mosaic.formats && md.mosaic.formats.jpeg) || a.avatar_url || "", sitio: "X", autor: a.name || "", fecha: tw.created_at ? new Date(tw.created_at).toISOString() : "" } } } catch (e) { } }
+    try { const j = await jsonDe("https://publish.twitter.com/oembed?omit_script=1&dnt=true&url=" + encodeURIComponent(d.href.replace(/\/\/(x|fxtwitter|vxtwitter|fixupx)\.com/, "//twitter.com"))); const txt = sinEtiquetas((String(j.html || "").match(/<p[^>]*>([\s\S]*?)<\/p>/i) || [])[1]); return { url: d.href, titulo: j.author_name ? j.author_name + " en X" : "Publicación en X", desc: txt.slice(0, 800), imagen: "", sitio: "X", autor: j.author_name || "" } } catch (e) { }
+  }
+  // TikTok
+  if (/(^|\.)tiktok\.com$/.test(h)) { try { const j = await jsonDe("https://www.tiktok.com/oembed?url=" + encodeURIComponent(d.href)); return { url: d.href, titulo: j.author_name ? j.author_name + " en TikTok" : "TikTok", desc: String(j.title || "").slice(0, 800), imagen: j.thumbnail_url || "", sitio: "TikTok", autor: j.author_name || "" } } catch (e) { } }
+  // Instagram, Facebook, Threads: muestran la vista previa a los lectores de enlaces de las redes sociales
+  const red = /(^|\.)(instagram\.com|facebook\.com|fb\.watch|fb\.com|threads\.net|threads\.com)$/.test(h);
+  let o = null;
+  if (red) { try { o = await pagina(d, UA_FB) } catch (e) { } if (pocoUtil(o)) { try { const o2 = await pagina(d, UA_TW); if (!pocoUtil(o2)) o = o2 } catch (e) { } } }
+  if (red && pocoUtil(o) && /instagram\.com$/.test(h)) { const c = (d.pathname.match(/\/(p|reel|reels|tv)\/([\w-]{5,40})/) || [])[2];
+    if (c) { try { const r = await fetch(`https://www.instagram.com/p/${c}/embed/captioned/`, { headers: { "User-Agent": UA } }); if (r.ok) { const t = await r.text(), img = ent((t.match(/class="EmbeddedMediaImage"[^>]*src="([^"]+)"/) || t.match(/<img[^>]+src="([^"]+)"[^>]*class="EmbeddedMediaImage"/) || [])[1] || ""), cap = sinEtiquetas((t.match(/class="Caption"[^>]*>([\s\S]*?)<div class="CaptionComments"/) || t.match(/class="Caption"[^>]*>([\s\S]*?)<\/div>/) || [])[1] || ""), user = ent((t.match(/class="UsernameText"[^>]*>([^<]+)</) || [])[1] || "");
+      if (img || cap) o = { url: d.href, titulo: user ? user + " en Instagram" : "Publicación de Instagram", desc: cap.replace(new RegExp("^" + user.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*"), "").slice(0, 800), imagen: img, sitio: "Instagram", autor: user } } } catch (e) { } } }
+  if (!o || (!red && pocoUtil(o))) { try { const g = await pagina(d, UA); if (!o || !pocoUtil(g)) o = g } catch (e) { if (!o) throw e } }
+  if (pocoUtil(o) && !red) { try { const o2 = await pagina(d, UA_FB); if (!pocoUtil(o2)) o = o2 } catch (e) { } }
+  return o;
 }
 async function tg(bot, chat, texto) { const r = await fetch(`https://api.telegram.org/bot${bot}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chat, text: texto.slice(0, 4000), disable_web_page_preview: true }) }); return r.ok }
 const claveCfg = chat => "cfg:" + String(chat);
