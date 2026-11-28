@@ -132,3 +132,41 @@ window.addEventListener("load",()=>{
     A.push(["🤝",on?"Dejar de compartir con "+(S.pareja.otro||"mi pareja"):"Compartir con "+(S.pareja.otro||"mi pareja"),()=>{const L=new Set(S.pareja.comp.personas||[]);if(on)L.delete(f.nombre);else L.add(f.nombre);S.pareja.comp.personas=[...L];changed();syncPar(true);aviso(on?"Ya no se comparte":"🤝 Se compartirá "+f.nombre)}])}return A};
   const ad=window.accionesD;if(typeof ad==="function")window.accionesD=function(e){const A=ad.apply(this,arguments);if(e.tipo==="evento"&&!e.priv){const on=/#familia\b/i.test((e.titulo||"")+" "+(e.texto||""));
     A.splice(Math.max(0,A.length-2),0,["👨‍👩‍👧",on?"Quitar de la agenda familiar":"Agenda familiar (#familia)",()=>{if(on){e.titulo=(e.titulo||"").replace(/\s*#familia\b/gi,"");e.texto=(e.texto||"").replace(/\s*#familia\b/gi,"")}else e.texto=((e.texto||"")+" #familia").trim();e.editado=new Date().toISOString();changed();render();if(S.pareja)syncPar(true)}])}return A}});
+// =====================================================================================================
+// Lo recibido DENTRO de cada módulo (solo lectura, marcado «🤝 de …»):
+// · Salud: las personas compartidas aparecen en Resumen, Perfiles, Historial y Síntomas con sus registros y su perfil.
+// · Agenda (Diario e Inicio): sus citas de salud y las actividades #familia de tu pareja.
+// · Finanzas: pestaña «🤝 Pareja» con el hogar, las categorías y los gastos en común.
+// Mientras se dibuja la pantalla se suman como elementos virtuales y se retiran al terminar: nunca se guardan en tus datos.
+// =====================================================================================================
+const PARV={recs:new Map(),ev:new Map()};
+const idPar=(...p)=>"par_"+[...p].join("|").replace(/[^\w|-]/g,"").slice(0,60)+"_"+Math.abs([...p.join("|")].reduce((h,c)=>(h*31+c.charCodeAt(0))|0,7)).toString(36);
+function virtualesPar(){const I=S&&S.pareja&&S.pareja.estado==="activo"&&S.parejaIn;PARV.recs.clear();PARV.ev.clear();if(!I)return{R:[],P:[],E:[]};const otro=S.pareja.otro||"tu pareja",R=[],P=[],E=[];
+  for(const p of I.personas||[]){(p.salud||[]).forEach((r,i)=>{const v={...r,id:idPar(p.nombre,r.fecha,r.hora||"",r.titulo||"",i),personas:[p.nombre],sintomas:r.sintomas||[],meds:r.meds||[],vacunas:r.vacunas||[],medidas:r.medidas||{},adjuntos:[],enlaces:[],versiones:[],texto:r.texto||"",titulo:r.titulo||"",fechaFin:r.fechaFin||"",horaFin:r.horaFin||"",inc:null,creado:"",editado:"",_par:otro};R.push(v);PARV.recs.set(v.id,{v,p})});
+    if(p.perfil&&!(S.perfilesSalud||[]).some(x=>claveF(x.nombre)===claveF(p.nombre)))P.push({...p.perfil,nombre:p.nombre,_par:otro})}
+  (I.agenda||[]).forEach((e,i)=>{const v={id:idPar("ev",e.f,e.h,e.t,i),...e,_par:otro};E.push(v);PARV.ev.set(v.id,v)});return{R,P,E}}
+function conVirtuales(fn){if(!S||!S.parejaIn||!S.pareja||S.pareja.estado!=="activo")return fn();const {R,P,E}=virtualesPar();S.salud=S.salud||[];S.perfilesSalud=S.perfilesSalud||[];
+  S.salud.push(...R);S.perfilesSalud.push(...P);PARV.agenda=E;try{return fn()}finally{S.salud=(S.salud||[]).filter(r=>!r._par);S.perfilesSalud=(S.perfilesSalud||[]).filter(p=>!p._par);PARV.agenda=null}}
+function verRecPar(id){const x=PARV.recs.get(id)||(virtualesPar(),PARV.recs.get(id));if(!x){aviso("Ese registro ya no está compartido.");return}const r=x.v;
+  dlg(`${esc((STIPOS[r.tipo]||["📝"])[0])} ${esc(r.titulo||"Registro")}`,`<p class="small"><span class="chip">🤝 compartido por ${esc(r._par)}</span> · solo lectura</p>
+   <p><b>${esc(x.p.nombre)}</b> · ${esc(fechaLarga(r.fecha))}${r.hora?" "+esc(r.hora):""}${r.estado?` · <span class="chip">${esc(r.estado)}</span>`:""}</p>
+   ${r.medico?`<p>🩺 ${esc(r.medico)}${r.esp?" · "+esc(r.esp):""}${r.lugar?" · 📍 "+esc(r.lugar):""}</p>`:""}${(r.sintomas||[]).length?`<p>Síntomas: ${r.sintomas.map(esc).join(", ")}</p>`:""}
+   ${(r.meds||[]).map(m=>`<div>💊 <b>${esc(m.n)}</b> ${esc(m.dosis||"")}${m.cadaH?" cada "+m.cadaH+" h":""}${m.dias?" por "+m.dias+" días":""}</div>`).join("")}${(r.vacunas||[]).map(v=>`<div>💉 <b>${esc(v.v)}</b> ${esc(v.dosis||"")}${v.refuerzo?" · refuerzo "+esc(fechaCorta(v.refuerzo)):""}</div>`).join("")}
+   ${Object.entries(r.medidas||{}).filter(([,v])=>v!==""&&v!=null).length?`<p>${Object.entries(r.medidas).filter(([,v])=>v!==""&&v!=null).map(([k,v])=>`${esc(k)}: <b>${esc(v)}</b>`).join(" · ")}</p>`:""}
+   ${r.texto?`<div class="md">${md(r.texto)}</div>`:""}${r.nAdj?`<p class="small muted">📎 ${r.nAdj} adjunto(s) que no se comparten: pídeselos a ${esc(r._par)} si los necesitas.</p>`:""}`,[["Cerrar","p",cerrar]])}
+function verEvPar(id){const e=PARV.ev.get(id)||(virtualesPar(),PARV.ev.get(id));if(!e)return;dlg("📅 "+esc(e.t||"Actividad"),`<p class="small"><span class="chip">🤝 agenda familiar de ${esc(e._par)}</span> · solo lectura</p><p>${esc(fechaLarga(e.f))}${e.h?" · "+esc(e.h)+(e.hf?"–"+esc(e.hf):""):""}${e.ff&&e.ff!==e.f?" → "+esc(fechaLarga(e.ff)):""}</p>${e.l?`<p>📍 ${esc(e.l)}</p>`:""}`,[["Cerrar","p",cerrar]])}
+// Finanzas › 🤝 Pareja
+function vFinPar(){const I=S.parejaIn,P=S.pareja;$("#view").innerHTML=!P||P.estado!=="activo"?`<div class="card"><h2>🤝 Pareja</h2><p class="small">Aún no estás emparejada/o. Hazlo en Ajustes › Datos › 🤝 Compartir con mi pareja.</p></div>`
+   :`<div class="card"><h2>🤝 Finanzas con ${esc(P.otro||"tu pareja")}</h2>${I?pvFin(I):'<p class="small muted">Todavía no ha llegado nada.</p>'}<p class="small muted">Tú compartes: ${({nada:"nada de tus finanzas",total:"solo tus totales",cat:"tus totales por categoría"})[P.comp.fin||"nada"]}${(P.comp.ctas||[]).length+(P.comp.cats||[]).length?" y el detalle de "+esc([...(P.comp.ctas||[]),...(P.comp.cats||[])].join(", ")):""}. <a href="#" id="fpAj">Cambiar</a></p></div>`;
+  document.querySelectorAll("#view [data-pvm]").forEach(s=>s.onchange=()=>{PV.mes=s.value;render()});const a=$("#fpAj");if(a)a.onclick=ev=>{ev.preventDefault();$("#btnAj").click()}}
+function ponerTabPar(){const n=$("#tabs");if(!n)return;const hay=!!(S&&S.pareja&&S.pareja.estado==="activo"),b=n.querySelector('[data-t="par"]');if(hay&&!b)n.insertAdjacentHTML("beforeend",'<button data-t="par">🤝 Pareja</button>');else if(!hay&&b){b.remove();if(TAB==="par")TAB="inicio"}}
+window.addEventListener("load",()=>{
+  const r0=window.render;if(typeof r0==="function")window.render=function(){if(S)ponerTabPar();if(S&&typeof MOD!=="undefined"&&MOD==="fin"&&TAB==="par"){document.body.dataset.mod=MOD;vFinPar();return}return conVirtuales(()=>r0.apply(this,arguments))};
+  const ts=window.tarjetaS;if(typeof ts==="function")window.tarjetaS=function(r){const h=ts.apply(this,arguments);return r&&r._par?h.replace(/^(\s*<div[^>]*>)/,`$1<span class="chip par">🤝 ${esc(r._par)}</span> `):h};
+  const vs=window.verS;if(typeof vs==="function")window.verS=function(id){if(String(id).startsWith("par_"))return verRecPar(id);return vs.apply(this,arguments)};
+  const es=window.editarS;if(typeof es==="function")window.editarS=function(id){if(String(id||"").startsWith("par_")){aviso("Es de tu pareja: solo lectura");return verRecPar(id)}return es.apply(this,arguments)};
+  const ir=window.itemsRango;if(typeof ir==="function")window.itemsRango=function(desde,hasta){const out=ir.apply(this,arguments);const E=PARV.agenda||(S&&S.parejaIn&&S.pareja&&S.pareja.estado==="activo"?virtualesPar().E:[]);
+    for(const e of E)if(e.f<=hasta&&(e.ff||e.f)>=desde)out.push({k:"pa",fecha:e.f>=desde?e.f:desde,hora:e.h||"",e});return out.sort((a,b)=>a.fecha.localeCompare(b.fecha)||(a.hora||"").localeCompare(b.hora||""))};
+  const ti=window.tarjetaItem;if(typeof ti==="function")window.tarjetaItem=function(x){if(x&&x.k==="pa")return`<div class="it ev click" data-pev="${esc(x.e.id)}">📅 ${x.e.h?`<b>${esc(x.e.h)}</b> `:""}${esc(x.e.t||"Actividad")} <span class="chip par">🤝 ${esc(x.e._par)}</span>${x.e.l?` <span class="small muted">📍 ${esc(x.e.l)}</span>`:""}</div>`;return ti.apply(this,arguments)};
+  document.addEventListener("click",ev=>{const a=ev.target.closest&&ev.target.closest("[data-pev]");if(a){ev.preventDefault();verEvPar(a.dataset.pev)}});
+});
